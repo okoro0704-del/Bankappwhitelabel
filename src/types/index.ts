@@ -68,6 +68,34 @@ export const TENANT_STATUSES = ['active', 'inactive'] as const;
 
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
+export const TENANT_DNS_STATUSES = [
+  'not_configured',
+  'pending',
+  'verified',
+  'failed',
+] as const;
+
+export type TenantDnsStatus = (typeof TENANT_DNS_STATUSES)[number];
+
+export const TENANT_SSL_STATUSES = [
+  'not_configured',
+  'pending',
+  'verified',
+  'failed',
+] as const;
+
+export type TenantSslStatus = (typeof TENANT_SSL_STATUSES)[number];
+
+export const TENANT_DEPLOYMENT_STATUSES = [
+  'not_configured',
+  'waiting_for_dns',
+  'dns_configured',
+  'ssl_pending',
+  'ready',
+] as const;
+
+export type TenantDeploymentStatus = (typeof TENANT_DEPLOYMENT_STATUSES)[number];
+
 export interface TenantBranding {
   applicationName: string;
   logoUrl: string | null;
@@ -88,6 +116,14 @@ export interface TenantRecord {
   status: TenantStatus;
   ownerUserId: string | null;
   subdomain: string;
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
+  dnsCheckedAt: string | null;
+  dnsVerifiedAt: string | null;
+  lastProvisionedAt: string | null;
+  sslCheckedAt: string | null;
+  lastProvisionError: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,10 +156,40 @@ export interface MasterTenantSummary {
   slug: string;
   status: TenantStatus;
   subdomain: string;
+  hostname: string;
   ownerUserId: string | null;
+  ownerAssigned: boolean;
   applicationName: string;
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TenantDnsRecordInstructions {
+  type: 'CNAME';
+  name: string;
+  target: string;
+}
+
+/** Master-only deployment / handoff metadata (never includes secrets). */
+export interface TenantDeploymentInfo {
+  hostname: string;
+  loginUrl: string;
+  baseDomain: string;
+  dnsTarget: string;
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
+  dnsRecord: TenantDnsRecordInstructions;
+  dnsCheckedAt: string | null;
+  dnsVerifiedAt: string | null;
+  lastProvisionedAt: string | null;
+  sslCheckedAt: string | null;
+  lastProvisionError: string | null;
+  ownerAssigned: boolean;
+  provider: 'manual' | 'netlify';
 }
 
 export interface CreateTenantInput {
@@ -141,8 +207,29 @@ export interface UpdateTenantInput {
   branding?: Partial<TenantBranding>;
 }
 
+export interface UpdateTenantDeploymentInput {
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
+  dnsCheckedAt: string | null;
+  dnsVerifiedAt: string | null;
+  lastProvisionedAt?: string | null;
+  sslCheckedAt?: string | null;
+  lastProvisionError?: string | null;
+}
+
 export const isTenantStatus = (value: string): value is TenantStatus => {
   return TENANT_STATUSES.includes(value as TenantStatus);
+};
+
+export const isTenantDnsStatus = (value: string): value is TenantDnsStatus => {
+  return TENANT_DNS_STATUSES.includes(value as TenantDnsStatus);
+};
+
+export const isTenantDeploymentStatus = (
+  value: string,
+): value is TenantDeploymentStatus => {
+  return TENANT_DEPLOYMENT_STATUSES.includes(value as TenantDeploymentStatus);
 };
 
 export interface AccountRecord {

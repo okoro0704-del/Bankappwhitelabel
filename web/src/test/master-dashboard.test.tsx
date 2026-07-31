@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ToastProvider } from '../components/ui/Toast';
@@ -58,6 +58,10 @@ vi.mock('../api/endpoints', () => ({
     masterUpdateTenant: vi.fn(),
     masterActivateTenant: vi.fn(),
     masterDeactivateTenant: vi.fn(),
+    masterVerifyTenantDns: vi.fn(),
+    masterVerifyTenantSsl: vi.fn(),
+    masterProvisionTenant: vi.fn(),
+    masterGetTenantDeployment: vi.fn(),
   },
 }));
 
@@ -74,14 +78,41 @@ const branding: TenantBranding = {
   supportEmail: 'owner@example.com',
 };
 
+const sampleDeployment = {
+  hostname: 'partner.app.example.com',
+  loginUrl: 'https://partner.app.example.com/login',
+  baseDomain: 'app.example.com',
+  dnsTarget: 'edgeserver.example.com',
+  dnsStatus: 'pending' as const,
+  sslStatus: 'not_configured' as const,
+  deploymentStatus: 'waiting_for_dns' as const,
+  dnsRecord: {
+    type: 'CNAME' as const,
+    name: 'partner',
+    target: 'edgeserver.example.com',
+  },
+  dnsCheckedAt: null,
+  dnsVerifiedAt: null,
+  lastProvisionedAt: null,
+  sslCheckedAt: null,
+  lastProvisionError: null,
+  ownerAssigned: true,
+  provider: 'manual' as const,
+};
+
 const sampleTenant: MasterTenantSummary = {
   id: 't-1',
   name: 'Partner App',
   slug: 'partner',
   status: 'active',
   subdomain: 'partner',
+  hostname: 'partner.app.example.com',
   ownerUserId: '11111111-1111-4111-8111-111111111111',
+  ownerAssigned: true,
   applicationName: 'Northline Partner',
+  dnsStatus: 'pending',
+  sslStatus: 'not_configured',
+  deploymentStatus: 'waiting_for_dns',
   createdAt: '2026-07-01T00:00:00.000Z',
   updatedAt: '2026-07-02T00:00:00.000Z',
 };
@@ -98,6 +129,7 @@ const sampleDetail: MasterTenantDetail = {
     updatedAt: sampleTenant.updatedAt,
   },
   branding,
+  deployment: sampleDeployment,
 };
 
 function wrap(ui: ReactNode, path = '/') {
@@ -132,6 +164,7 @@ describe('Master Admin authentication', () => {
     vi.mocked(api.masterUpdateTenant).mockReset();
     vi.mocked(api.masterActivateTenant).mockReset();
     vi.mocked(api.masterDeactivateTenant).mockReset();
+    vi.mocked(api.masterVerifyTenantDns).mockReset();
   });
 
   it('redirects unauthenticated Master routes to Master login', async () => {
@@ -213,6 +246,7 @@ describe('Master applications', () => {
     vi.mocked(api.masterUpdateTenant).mockReset();
     vi.mocked(api.masterActivateTenant).mockReset();
     vi.mocked(api.masterDeactivateTenant).mockReset();
+    vi.mocked(api.masterVerifyTenantDns).mockReset();
   });
 
   it('loads the tenant list', async () => {
@@ -254,8 +288,11 @@ describe('Master applications', () => {
           name: 'Inactive Co',
           slug: 'inactive-co',
           subdomain: 'inactive-co',
+          hostname: 'inactive-co.app.example.com',
           applicationName: 'Inactive Co',
           status: 'inactive',
+          ownerAssigned: false,
+          ownerUserId: null,
         },
       ],
       limit: 100,
@@ -271,7 +308,7 @@ describe('Master applications', () => {
     expect(screen.getAllByText('Inactive Co').length).toBeGreaterThan(0);
 
     await user.clear(screen.getByLabelText('Search'));
-    await user.selectOptions(screen.getByLabelText('Status'), 'active');
+    await user.selectOptions(screen.getByLabelText('Filter'), 'active');
     expect(screen.getAllByText('Northline Partner').length).toBeGreaterThan(0);
     expect(screen.queryByText('Inactive Co')).not.toBeInTheDocument();
   });
@@ -494,6 +531,156 @@ describe('Master branding', () => {
     );
     expect(screen.getByText('Preview Co')).toBeInTheDocument();
     expect(screen.getByText('Preview headline')).toBeInTheDocument();
+  });
+});
+
+describe('Master deployment handoff', () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    asMaster();
+    vi.mocked(api.masterGetTenant).mockReset();
+    vi.mocked(api.masterListTenants).mockReset();
+    vi.mocked(api.masterVerifyTenantDns).mockReset();
+    vi.mocked(api.masterVerifyTenantSsl).mockReset();
+    vi.mocked(api.masterProvisionTenant).mockReset();
+    writeText.mockClear();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+  });
+
+  it('shows deployment status, DNS instructions, and owner assignment', async () => {
+    vi.mocked(api.masterGetTenant).mockResolvedValue(sampleDetail);
+
+    wrap(
+      <Routes>
+        <Route path="/master/applications/:tenantId" element={<MasterApplicationDetailPage />} />
+      </Routes>,
+      '/master/applications/t-1',
+    );
+
+    expect(await screen.findByText('Deployment')).toBeInTheDocument();
+    expect(screen.getAllByText('Waiting for DNS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('partner.app.example.com').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('edgeserver.example.com').length).toBeGreaterThan(0);
+    expect(screen.getByText('CNAME')).toBeInTheDocument();
+    expect(screen.getAllByText('https://partner.app.example.com/login').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Provision' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry Provisioning' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Verify SSL' })).toBeInTheDocument();
+    expect(screen.queryByText(/^Ready$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/NETLIFY_AUTH_TOKEN|service_role/i)).not.toBeInTheDocument();
+  });
+
+  it('calls provision endpoint from Master deployment actions', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.masterGetTenant).mockResolvedValue(sampleDetail);
+    vi.mocked(api.masterProvisionTenant).mockResolvedValue({
+      status: 'waiting_for_dns',
+      hostname: 'partner.app.example.com',
+      expectedTarget: 'edgeserver.example.com',
+      deploymentStatus: 'waiting_for_dns',
+      dnsStatus: 'pending',
+      sslStatus: 'pending',
+      message: 'Hostname associated and DNS record configured. SSL is pending.',
+      checkedAt: '2026-07-31T12:00:00.000Z',
+      code: 'DNS_NOT_READY',
+      tenant: sampleDetail,
+    });
+
+    wrap(
+      <Routes>
+        <Route path="/master/applications/:tenantId" element={<MasterApplicationDetailPage />} />
+      </Routes>,
+      '/master/applications/t-1',
+    );
+
+    expect(await screen.findByRole('button', { name: 'Provision' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Provision' }));
+    expect(api.masterProvisionTenant).toHaveBeenCalledWith('t-1');
+  });
+
+  it('shows owner not assigned when no owner UUID', async () => {
+    vi.mocked(api.masterGetTenant).mockResolvedValue({
+      ...sampleDetail,
+      tenant: { ...sampleDetail.tenant, ownerUserId: null },
+      deployment: { ...sampleDeployment, ownerAssigned: false },
+    });
+
+    wrap(
+      <Routes>
+        <Route path="/master/applications/:tenantId" element={<MasterApplicationDetailPage />} />
+      </Routes>,
+      '/master/applications/t-1',
+    );
+
+    expect(await screen.findAllByText(/^Owner not assigned$/i)).toHaveLength(2);
+  });
+
+  it('copies hostname and login URL from handoff', async () => {
+    vi.mocked(api.masterGetTenant).mockResolvedValue(sampleDetail);
+
+    wrap(
+      <Routes>
+        <Route path="/master/applications/:tenantId" element={<MasterApplicationDetailPage />} />
+      </Routes>,
+      '/master/applications/t-1',
+    );
+
+    const handoffHeading = await screen.findByText('Handoff information');
+    const handoff = handoffHeading.closest('.card') as HTMLElement;
+    const hostnameRow = within(handoff)
+      .getByText('Hostname')
+      .closest('.handoff-row') as HTMLElement;
+    const loginRow = within(handoff)
+      .getByText('Login URL')
+      .closest('.handoff-row') as HTMLElement;
+
+    fireEvent.click(within(hostnameRow).getByRole('button', { name: 'Copy' }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('partner.app.example.com');
+    });
+
+    fireEvent.click(within(loginRow).getByRole('button', { name: 'Copy' }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('https://partner.app.example.com/login');
+    });
+  });
+
+  it('filters DNS pending applications without inventing ready rows', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.masterListTenants).mockResolvedValue({
+      items: [
+        sampleTenant,
+        {
+          ...sampleTenant,
+          id: 't-ready',
+          name: 'Ready Co',
+          slug: 'ready-co',
+          applicationName: 'Ready Co',
+          hostname: 'ready-co.app.example.com',
+          dnsStatus: 'verified',
+          sslStatus: 'verified',
+          deploymentStatus: 'ready',
+        },
+      ],
+      limit: 100,
+      offset: 0,
+      total: 2,
+    });
+
+    wrap(<MasterApplicationsPage />);
+    expect((await screen.findAllByText('Northline Partner')).length).toBeGreaterThan(0);
+
+    await user.selectOptions(screen.getByLabelText('Filter'), 'dns_pending');
+    expect(screen.getAllByText('Northline Partner').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Ready Co')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('Filter'), 'ready');
+    expect(screen.getAllByText('Ready Co').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Northline Partner')).not.toBeInTheDocument();
   });
 });
 

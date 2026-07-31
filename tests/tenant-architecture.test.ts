@@ -55,6 +55,14 @@ const seedNorthline = (repo: InMemoryTenantRepository) => {
     status: 'active',
     ownerUserId: null,
     subdomain: 'northline',
+    dnsStatus: 'pending',
+    sslStatus: 'not_configured',
+    deploymentStatus: 'waiting_for_dns',
+    dnsCheckedAt: null,
+    dnsVerifiedAt: null,
+    lastProvisionedAt: null,
+    sslCheckedAt: null,
+    lastProvisionError: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -112,6 +120,9 @@ test('master admin can create a tenant; normal user and tenant admin cannot', as
       branding: { applicationName: 'Brand A Bank', primaryColor: '#112233' },
     });
     assert.equal(created.tenant.slug, 'brand-a');
+    assert.equal(created.tenant.status, 'inactive');
+    assert.equal(created.tenant.dnsStatus, 'pending');
+    assert.equal(created.tenant.deploymentStatus, 'waiting_for_dns');
     assert.equal(created.branding.applicationName, 'Brand A Bank');
 
     await assert.rejects(
@@ -147,6 +158,9 @@ test('only master admin can modify tenant configuration', async () => {
 
     const deactivated = await service.deactivateTenant(masterAdmin, created.tenant.id);
     assert.equal(deactivated.tenant.status, 'inactive');
+
+    const activated = await service.activateTenant(masterAdmin, created.tenant.id);
+    assert.equal(activated.tenant.status, 'active');
 
     await assert.rejects(
       () => service.activateTenant(normalUser, created.tenant.id),
@@ -184,19 +198,32 @@ test('tenant A master detail is not available to non-master callers', async () =
 
 test('hostname and slug resolution; unknown tenant fails safely', async () => {
   await withTenantStack(async ({ resolver, service }) => {
+    process.env.TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN ?? 'app.example.com';
+
     assert.equal(extractTenantLabelFromHostname('brand-a.example.com'), 'brand-a');
     assert.equal(extractTenantLabelFromHostname('localhost:5173'), null);
 
     await service.createTenant(masterAdmin, { name: 'Brand C', slug: 'brand-c' });
 
-    const byHost = await resolver.resolve({ hostname: 'brand-c.example.com' });
+    const byHost = await resolver.resolve({ hostname: 'brand-c.app.example.com' });
     assert.equal(byHost.tenant.slug, 'brand-c');
 
-    const byLocal = await resolver.resolve({ hostname: 'localhost' });
-    assert.equal(byLocal.tenant.slug, 'northline');
+    const previousEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      const byLocal = await resolver.resolve({ hostname: 'localhost' });
+      assert.equal(byLocal.tenant.slug, 'northline');
+    } finally {
+      process.env.NODE_ENV = previousEnv;
+    }
 
     await assert.rejects(
-      () => resolver.resolve({ hostname: 'unknown.example.com' }),
+      () => resolver.resolve({ hostname: 'unknown.app.example.com' }),
+      NotFoundError,
+    );
+
+    await assert.rejects(
+      () => resolver.resolve({ hostname: 'brand-c.evil.com' }),
       NotFoundError,
     );
   });
@@ -209,8 +236,10 @@ test('dev X-Tenant-Slug works only when explicitly allowed outside production', 
     const previous = {
       NODE_ENV: process.env.NODE_ENV,
       ALLOW_DEV_TENANT_HEADER: process.env.ALLOW_DEV_TENANT_HEADER,
+      TENANT_BASE_DOMAIN: process.env.TENANT_BASE_DOMAIN,
     };
 
+    process.env.TENANT_BASE_DOMAIN = 'app.example.com';
     process.env.NODE_ENV = 'development';
     process.env.ALLOW_DEV_TENANT_HEADER = 'true';
     try {
@@ -227,15 +256,22 @@ test('dev X-Tenant-Slug works only when explicitly allowed outside production', 
     process.env.NODE_ENV = 'production';
     process.env.ALLOW_DEV_TENANT_HEADER = 'true';
     try {
-      const resolved = await resolver.resolve({
-        hostname: 'localhost',
-        headers: { 'x-tenant-slug': 'dev-brand' },
-      });
-      // Production ignores the header and falls back to default slug.
-      assert.equal(resolved.tenant.slug, 'northline');
+      await assert.rejects(
+        () =>
+          resolver.resolve({
+            hostname: 'localhost',
+            headers: { 'x-tenant-slug': 'dev-brand' },
+          }),
+        NotFoundError,
+      );
     } finally {
       process.env.NODE_ENV = previous.NODE_ENV;
       process.env.ALLOW_DEV_TENANT_HEADER = previous.ALLOW_DEV_TENANT_HEADER;
+      if (previous.TENANT_BASE_DOMAIN === undefined) {
+        delete process.env.TENANT_BASE_DOMAIN;
+      } else {
+        process.env.TENANT_BASE_DOMAIN = previous.TENANT_BASE_DOMAIN;
+      }
     }
   });
 });
@@ -282,14 +318,28 @@ test('API: public tenant config and master tenant routes', async () => {
       },
     });
     assert.equal(created.statusCode, 201);
-    const createdBody = created.body as { data: { tenant: { id: string; slug: string } } };
+    const createdBody = created.body as {
+      data: {
+        tenant: { id: string; slug: string; status: string };
+        deployment: { hostname: string; dnsStatus: string; deploymentStatus: string };
+      };
+    };
     assert.equal(createdBody.data.tenant.slug, 'api-brand');
+    assert.equal(createdBody.data.tenant.status, 'inactive');
+    assert.equal(createdBody.data.deployment.dnsStatus, 'pending');
+    assert.match(createdBody.data.deployment.hostname, /api-brand\./);
 
     const listed = await dispatchApiRequest({
       method: 'GET',
       path: '/api/master/tenants',
     });
     assert.equal(listed.statusCode, 200);
+
+    const activated = await dispatchApiRequest({
+      method: 'POST',
+      path: `/api/master/tenants/${createdBody.data.tenant.id}/activate`,
+    });
+    assert.equal(activated.statusCode, 200);
 
     const deactivated = await dispatchApiRequest({
       method: 'POST',
@@ -317,4 +367,17 @@ test('tenant architecture migration defines tenants and master_admins', async ()
   assert.match(sql, /a0000000-0000-4000-8000-000000000001/);
   assert.match(sql, /profiles.*tenant_id|tenant_id uuid/i);
   assert.match(sql, /is_master_admin/);
+
+  const deploySql = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      'supabase',
+      'migrations',
+      '20260731200000_tenant_deployment.sql',
+    ),
+    'utf8',
+  );
+  assert.match(deploySql, /tenant_dns_status/);
+  assert.match(deploySql, /tenant_deployment_status/);
+  assert.match(deploySql, /dns_status/);
 });

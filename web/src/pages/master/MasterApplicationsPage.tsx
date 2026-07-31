@@ -7,13 +7,46 @@ import { Field, Input, Select } from '../../components/ui/Field';
 import { PaginationBar } from '../../components/PaginationBar';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { formatDate, truncateMiddle } from '../../utils/format';
-import type { TenantStatus } from '../../types/tenant';
+import type { MasterTenantSummary, TenantDeploymentStatus, TenantStatus } from '../../types/tenant';
 
 const PAGE_SIZE = 20;
 
+type ListFilter = 'all' | TenantStatus | 'dns_pending' | 'ready';
+
+function deploymentLabel(status: TenantDeploymentStatus): string {
+  switch (status) {
+    case 'not_configured':
+      return 'Not configured';
+    case 'waiting_for_dns':
+      return 'Waiting for DNS';
+    case 'dns_configured':
+      return 'DNS configured';
+    case 'ssl_pending':
+      return 'SSL pending';
+    case 'ready':
+      return 'Ready';
+    default:
+      return status;
+  }
+}
+
+function matchesFilter(row: MasterTenantSummary, filter: ListFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'active' || filter === 'inactive') return row.status === filter;
+  if (filter === 'dns_pending') {
+    return (
+      row.dnsStatus === 'pending' ||
+      row.dnsStatus === 'failed' ||
+      row.deploymentStatus === 'waiting_for_dns'
+    );
+  }
+  if (filter === 'ready') return row.deploymentStatus === 'ready';
+  return true;
+}
+
 export function MasterApplicationsPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | TenantStatus>('all');
+  const [filter, setFilter] = useState<ListFilter>('all');
   const [offset, setOffset] = useState(0);
   const [sort, setSort] = useState<'newest' | 'name'>('newest');
 
@@ -31,20 +64,19 @@ export function MasterApplicationsPage() {
           t.name.toLowerCase().includes(q) ||
           t.slug.toLowerCase().includes(q) ||
           t.subdomain.toLowerCase().includes(q) ||
+          t.hostname.toLowerCase().includes(q) ||
           t.applicationName.toLowerCase().includes(q) ||
           (t.ownerUserId ?? '').toLowerCase().includes(q),
       );
     }
-    if (status !== 'all') {
-      items = items.filter((t) => t.status === status);
-    }
+    items = items.filter((t) => matchesFilter(t, filter));
     if (sort === 'name') {
       items.sort((a, b) => a.name.localeCompare(b.name));
     } else {
       items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
     return items;
-  }, [tenants.data, search, status, sort]);
+  }, [tenants.data, search, filter, sort]);
 
   const pageItems = filtered.slice(offset, offset + PAGE_SIZE);
 
@@ -66,25 +98,27 @@ export function MasterApplicationsPage() {
             <Input
               id="app-search"
               value={search}
-              placeholder="Name, slug, subdomain…"
+              placeholder="Name, slug, hostname…"
               onChange={(e) => {
                 setSearch(e.target.value);
                 setOffset(0);
               }}
             />
           </Field>
-          <Field label="Status" htmlFor="app-status">
+          <Field label="Filter" htmlFor="app-filter">
             <Select
-              id="app-status"
-              value={status}
+              id="app-filter"
+              value={filter}
               onChange={(e) => {
-                setStatus(e.target.value as 'all' | TenantStatus);
+                setFilter(e.target.value as ListFilter);
                 setOffset(0);
               }}
             >
               <option value="all">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="dns_pending">DNS pending</option>
+              <option value="ready">Ready</option>
             </Select>
           </Field>
           <Field label="Sort" htmlFor="app-sort">
@@ -124,10 +158,12 @@ export function MasterApplicationsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Application</th>
-                  <th>Owner</th>
-                  <th>Subdomain</th>
+                  <th>Name</th>
+                  <th>Slug</th>
+                  <th>Hostname</th>
                   <th>Status</th>
+                  <th>DNS</th>
+                  <th>Owner</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
@@ -137,16 +173,20 @@ export function MasterApplicationsPage() {
                   <tr key={row.id}>
                     <td>
                       <strong>{row.applicationName || row.name}</strong>
-                      <div className="muted mono-break" style={{ fontSize: '0.8rem' }}>
-                        {row.slug}
+                      <div className="muted" style={{ fontSize: '0.8rem' }}>
+                        {deploymentLabel(row.deploymentStatus)}
                       </div>
                     </td>
-                    <td className="mono-break">
-                      {row.ownerUserId ? truncateMiddle(row.ownerUserId, 8, 6) : '—'}
-                    </td>
-                    <td className="mono-break">{row.subdomain}</td>
+                    <td className="mono-break">{row.slug}</td>
+                    <td className="mono-break">{row.hostname}</td>
                     <td>
                       <StatusBadge status={row.status} />
+                    </td>
+                    <td>{row.dnsStatus.replace(/_/g, ' ')}</td>
+                    <td className="mono-break">
+                      {row.ownerAssigned
+                        ? truncateMiddle(row.ownerUserId ?? 'Assigned', 8, 6)
+                        : 'Not assigned'}
                     </td>
                     <td>{formatDate(row.createdAt)}</td>
                     <td>
@@ -176,7 +216,8 @@ export function MasterApplicationsPage() {
                   <StatusBadge status={row.status} />
                 </div>
                 <div className="mobile-meta">
-                  <span>{row.subdomain}</span>
+                  <span>{row.hostname}</span>
+                  <span>{deploymentLabel(row.deploymentStatus)}</span>
                   <span>{formatDate(row.createdAt)}</span>
                 </div>
               </Link>

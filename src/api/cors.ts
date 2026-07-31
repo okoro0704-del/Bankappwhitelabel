@@ -3,11 +3,16 @@
  * Never returns Access-Control-Allow-Origin: *.
  *
  * Configuration:
- * - CORS_ORIGIN — comma-separated list of allowed frontend origins
- *   e.g. https://app.example.com,https://www.example.com
+ * - CORS_ORIGIN — comma-separated allow-list of frontend origins and/or
+ *   single-label subdomain patterns under a concrete base domain:
+ *     https://app.example.com
+ *     https://*.app.example.com
+ * - Patterns only match https://{one-label}.{suffix} — never arbitrary hosts.
  * - When unset and NODE_ENV !== production, localhost Vite origins are allowed
  *   so optional direct browser→API calls work; Vite proxy does not need CORS.
  */
+
+import { isValidSubdomain } from '../tenants/hostname';
 
 const LOCAL_DEV_ORIGINS = [
   'http://localhost:5173',
@@ -25,14 +30,62 @@ const parseAllowedOrigins = (): string[] => {
     .filter((value) => value.length > 0 && value !== '*');
 };
 
+/**
+ * Match an exact origin or a https://*.{base} pattern (single DNS label only).
+ */
+export const originMatchesAllowListEntry = (
+  requestOrigin: string,
+  entry: string,
+): boolean => {
+  if (!entry.includes('*')) {
+    return requestOrigin === entry;
+  }
+
+  // Only https://*.suffix patterns (suffix must contain a dot — e.g. app.example.com).
+  const match = /^https:\/\/\*\.([a-z0-9.-]+\.[a-z0-9.-]+)$/i.exec(entry.trim());
+  if (!match) {
+    return false;
+  }
+
+  const suffix = match[1]!.toLowerCase();
+  try {
+    const url = new URL(requestOrigin);
+    if (url.protocol !== 'https:') {
+      return false;
+    }
+    const host = url.hostname.toLowerCase();
+    if (host === suffix || !host.endsWith(`.${suffix}`)) {
+      return false;
+    }
+    const label = host.slice(0, -(suffix.length + 1));
+    if (!label || label.includes('.') || !isValidSubdomain(label)) {
+      return false;
+    }
+    // Reconstruct to avoid suffix tricks.
+    return host === `${label}.${suffix}`;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * When CORS_ORIGIN lists a tenant wildcard, prefer TENANT_BASE_DOMAIN alignment.
+ * Entries that are not patterns still work as exact matches.
+ */
 export const resolveAllowedOrigin = (
   requestOrigin: string | undefined,
 ): string | null => {
   const configured = parseAllowedOrigins();
 
   if (configured.length > 0) {
-    if (requestOrigin && configured.includes(requestOrigin)) {
-      return requestOrigin;
+    if (!requestOrigin) {
+      return null;
+    }
+
+    for (const entry of configured) {
+      if (originMatchesAllowListEntry(requestOrigin, entry)) {
+        return requestOrigin;
+      }
     }
     return null;
   }
@@ -59,7 +112,7 @@ export const buildCorsHeaders = (
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Tenant-Slug',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };

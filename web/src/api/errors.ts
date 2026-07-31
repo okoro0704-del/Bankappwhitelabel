@@ -31,6 +31,15 @@ const FRIENDLY: Record<string, string> = {
   METHOD_NOT_ALLOWED: 'This action is not supported.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
   NETWORK_ERROR: 'Unable to reach the server. Check your connection and try again.',
+  DEPLOYMENT_NOT_CONFIGURED: 'Deployment provider is not configured on the server.',
+  NETLIFY_AUTH_FAILED: 'Netlify authentication failed. Check server credentials.',
+  NETLIFY_SITE_NOT_FOUND: 'Configured Netlify site was not found.',
+  DNS_PROVISIONING_FAILED: 'DNS provisioning failed. Try again or check Netlify DNS.',
+  DNS_NOT_READY: 'DNS is not ready yet for this hostname.',
+  SSL_PROVISIONING_FAILED: 'SSL provisioning failed.',
+  SSL_NOT_READY: 'SSL is not ready yet for this hostname.',
+  DEPLOYMENT_CONFLICT: 'A conflicting DNS record already exists for this hostname.',
+  DEPLOYMENT_NOT_READY: 'Deployment is not ready yet.',
 };
 
 export function getFriendlyErrorMessage(error: unknown): string {

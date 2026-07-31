@@ -4,8 +4,8 @@ This document describes the white-label multi-tenant architecture.
 
 | Status | Meaning |
 |--------|---------|
-| **Implemented (Phase 1–4)** | Tenant schema, branding, Master Admin, TenantResolver, Master API, public tenant config, financial `tenant_id` isolation, Master Dashboard UI, **runtime customer branding** via `TenantProvider` + `/api/tenant/config` |
-| **Planned later** | DNS, Netlify, deployment automation, edge hostname routing, owner invitation flows |
+| **Implemented (Phase 1–5)** | Tenant schema, branding, Master Admin, TenantResolver, Master API, public tenant config, financial isolation, Master Dashboard, runtime branding, **deployment metadata + DNS verification (manual provider)** |
+| **Planned later** | DNS/hosting provider automation, owner invitation flows |
 
 ---
 
@@ -203,9 +203,127 @@ DNS, TLS, edge routing, Netlify automation.
 
 ---
 
+## Production topology (Phase 6)
+
+Creating a tenant does **not** create a new application deployment. One frontend build and one API serve every tenant subdomain.
+
+```text
+                         Production
+                             │
+                    yourdomain.com (optional apex)
+                             │
+                  ┌──────────┴──────────┐
+                  │                     │
+     bank-a.app.yourdomain.com   bank-b.app.yourdomain.com
+                  │                     │
+                  └──────────┬──────────┘
+                             │
+                    Same frontend build
+                             │
+                       Same API
+                             │
+                       Supabase
+                             │
+                    TenantResolver
+                   (TENANT_BASE_DOMAIN)
+                             │
+                 Tenant-specific branding / data
+```
+
+Recommended topology:
+
+1. Static frontend (or edge) serves the same SPA on every tenant hostname.
+2. API is on a fixed host (e.g. `api.yourdomain.com`) or same-origin via reverse proxy.
+3. `CORS_ORIGIN` lists exact Master origins and/or `https://*.{TENANT_BASE_DOMAIN}`.
+4. `TENANT_BASE_DOMAIN` is authoritative for hostname **generation and resolution**.
+5. DNS CNAME for each `{subdomain}.{TENANT_BASE_DOMAIN}` → `DEPLOYMENT_DNS_TARGET`.
+
+### Hostname resolution hardening
+
+- Only `{label}.{TENANT_BASE_DOMAIN}` (optional `www.` prefix) resolves.
+- Attacker hosts like `{label}.evil.com` or `{base}.attacker.com` → not found.
+- Production: no `TENANT_DEV_DEFAULT_SLUG` fallback; localhost / missing Host → not found.
+- `X-Tenant-Slug` never overrides identity in production (startup refuses `ALLOW_DEV_TENANT_HEADER=true`).
+
+### CORS
+
+- Never `Access-Control-Allow-Origin: *`.
+- Allow exact origins and single-label patterns: `https://*.app.example.com`.
+- Multi-label hosts (`a.b.app.example.com`) are rejected by the pattern matcher.
+
+### Rate limiting (hosting layer)
+
+Application-level protections today:
+
+- Verification codes: per-code attempt limits (`TOO_MANY_VERIFICATION_ATTEMPTS`).
+- Transfer idempotency keys.
+- Auth via Supabase (no custom password-spray limiter in-app).
+
+Production should add edge/WAF or API-gateway rate limits for:
+
+- `/api/session`, password reset, public `/api/tenant/config`
+- Master write endpoints
+- Transfer create / verification submit
+
+Do not change transfer business rules solely to add rate limiting.
+
+### Deployment readiness
+
+`ready` requires verified DNS **and** verified SSL. Creating a tenant or activating it does not invent Ready. Frontend cannot PATCH deployment status.
+
+## Live verification readiness (Phase 8)
+
+Automated tests cover mocked Netlify provisioning, production env guards, CORS tenant patterns, hostname fail-closed behavior, and secret non-exposure.
+
+Live checks that remain **manual / flagged**:
+
+| Check | How | Automated? |
+|-------|-----|------------|
+| Real Netlify DNS record creation | Master **Provision** on staging/prod | No — mocked in CI |
+| Real SSL issuance | Wait + **Verify SSL** after DNS propagates | No |
+| Live Supabase Auth + RLS | `RUN_SUPABASE_INTEGRATION=1` | Optional / skipped by default |
+| Cross-tenant isolation on live DB | Manual smoke + integration flag | Partial (unit/mocked) |
+
+Production startup (`assertProductionEnvSafety`) requires `CORS_ORIGIN`, Supabase keys, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, and — when `DEPLOYMENT_PROVIDER=netlify` — `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` (rejects placeholder `*.example.com` targets).
+
+See `docs/QA.md` for the full deployment sequence.
+
+## Netlify DNS automation (Phase 7)
+
+One shared Netlify site hosts the white-label frontend for every tenant.
+
+```text
+Master Dashboard → POST /api/master/tenants/:id/provision
+        ↓
+NetlifyDeploymentProvider
+        ↓
+PATCH site domain_aliases += {subdomain}.{TENANT_BASE_DOMAIN}
+        ↓
+Netlify DNS CNAME → DEPLOYMENT_DNS_TARGET (usually site.netlify.app)
+        ↓
+POST /sites/{id}/ssl (Let's Encrypt kickoff)
+        ↓
+Public DNS + TLS verification
+        ↓
+ready only when DNS verified AND SSL verified
+```
+
+Server-only env:
+
+- `DEPLOYMENT_PROVIDER=netlify` (or auto when token + site id set)
+- `NETLIFY_AUTH_TOKEN` — never `VITE_*`
+- `NETLIFY_SITE_ID` — shared site only (not client-selectable)
+- `NETLIFY_DNS_ZONE_ID` — optional; otherwise resolved from `TENANT_BASE_DOMAIN`
+- `TENANT_BASE_DOMAIN` / `DEPLOYMENT_DNS_TARGET` — reused from Phase 5
+
+Manual fallback: `DEPLOYMENT_PROVIDER=manual` keeps Phase 5 verify-only behavior.
+
+Activation remains separate from deployment readiness.
+
 ## Branding
 
 Stored in `tenant_branding`. Public config never includes secrets.
+Server and client reject `javascript:` / `data:` / non-http(s) logo and favicon URLs; colors must be `#RRGGBB`.
 
 ### Runtime customer branding (Phase 4)
 
@@ -215,8 +333,8 @@ hostname → TenantResolver → GET /api/tenant/config → TenantProvider → CS
 
 - One Vite build serves every tenant.
 - Customer routes are gated until an **active** public config loads.
-- Inactive / unknown hosts → application unavailable (no silent Northline fallback in production resolution failures).
-- Local development still uses `TENANT_DEV_DEFAULT_SLUG` (default `northline`) when the host has no subdomain label.
+- Inactive / unknown hosts → application unavailable (no silent Northline fallback in production).
+- Local development still uses `TENANT_DEV_DEFAULT_SLUG` (default `northline`) on localhost only.
 - Master Dashboard (`/master/*`) is not gated on customer branding.
 
 ---
@@ -239,10 +357,41 @@ Frontend routes under `/master/*` (separate from `/app/*` and `/admin/*`):
 - `/master/applications/:tenantId/branding` — branding editor + live preview
 
 Access requires `GET /api/session` → `isMasterAdmin: true`. Master APIs remain authoritative.
+Master Admin is configuration-only — not a tenant financial administrator.
+
+## Deployment / DNS provisioning (Phase 5)
+
+```text
+Master creates tenant (inactive)
+        ↓
+Configure branding + subdomain
+        ↓
+Server builds hostname = {subdomain}.{TENANT_BASE_DOMAIN}
+        ↓
+Master shows required CNAME → DEPLOYMENT_DNS_TARGET
+        ↓
+POST /api/master/tenants/:id/verify-dns
+        ↓
+ManualDeploymentProvider resolves DNS (no Netlify/Vercel/Cloudflare API)
+        ↓
+Persists dns_status / ssl_status / deployment_status
+        ↓
+Master activates tenant when ready (independent of DNS)
+        ↓
+Customer host → TenantResolver → branded app
+```
+
+One customer frontend/backend deployment serves every tenant hostname. DNS/SSL are never reported ready unless verification succeeds.
+
+Environment (server-only):
+
+- `TENANT_BASE_DOMAIN` — e.g. `app.example.com`
+- `DEPLOYMENT_DNS_TARGET` — CNAME target for handoff + verification
 
 ## What remains out of scope
 
-- DNS / hosting integrations
+- DNS / hosting provider automations (Cloudflare, Netlify, Vercel APIs)
 - Owner invitation / email provisioning APIs
 - Real banks / payment processors
 - Broadening Master Admin into financial operations
+- Distributed in-app rate limiting (document edge/WAF requirements instead)

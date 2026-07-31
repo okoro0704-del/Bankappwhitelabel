@@ -9,6 +9,7 @@ import type {
   TenantRecord,
   TenantStatus,
   TenantWithBranding,
+  UpdateTenantDeploymentInput,
   UpdateTenantInput,
 } from '../../types';
 import { ConflictError, NotFoundError, ValidationError } from '../../utils/errors';
@@ -20,6 +21,14 @@ const TENANT_COLUMNS = `
   status,
   owner_user_id,
   subdomain,
+  dns_status,
+  ssl_status,
+  deployment_status,
+  dns_checked_at,
+  dns_verified_at,
+  last_provisioned_at,
+  ssl_checked_at,
+  last_provision_error,
   created_at,
   updated_at
 `;
@@ -47,6 +56,17 @@ export const mapTenant = (row: Record<string, unknown>): TenantRecord => ({
   status: row.status as TenantStatus,
   ownerUserId: row.owner_user_id == null ? null : String(row.owner_user_id),
   subdomain: String(row.subdomain),
+  dnsStatus: (row.dns_status as TenantRecord['dnsStatus']) ?? 'not_configured',
+  sslStatus: (row.ssl_status as TenantRecord['sslStatus']) ?? 'not_configured',
+  deploymentStatus:
+    (row.deployment_status as TenantRecord['deploymentStatus']) ?? 'not_configured',
+  dnsCheckedAt: row.dns_checked_at == null ? null : String(row.dns_checked_at),
+  dnsVerifiedAt: row.dns_verified_at == null ? null : String(row.dns_verified_at),
+  lastProvisionedAt:
+    row.last_provisioned_at == null ? null : String(row.last_provisioned_at),
+  sslCheckedAt: row.ssl_checked_at == null ? null : String(row.ssl_checked_at),
+  lastProvisionError:
+    row.last_provision_error == null ? null : String(row.last_provision_error),
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at),
 });
@@ -102,6 +122,10 @@ export interface TenantRepositoryPort {
   }>;
   update(id: string, input: UpdateTenantInput): Promise<TenantWithBranding>;
   setStatus(id: string, status: TenantStatus): Promise<TenantWithBranding>;
+  updateDeployment(
+    id: string,
+    input: UpdateTenantDeploymentInput,
+  ): Promise<TenantWithBranding>;
 }
 
 /**
@@ -133,9 +157,17 @@ export class InMemoryTenantRepository implements TenantRepositoryPort {
       id,
       name: input.name.trim(),
       slug,
-      status: 'active',
+      status: 'inactive',
       ownerUserId: input.ownerUserId ?? null,
       subdomain,
+      dnsStatus: 'pending',
+      sslStatus: 'not_configured',
+      deploymentStatus: 'waiting_for_dns',
+      dnsCheckedAt: null,
+      dnsVerifiedAt: null,
+      lastProvisionedAt: null,
+      sslCheckedAt: null,
+      lastProvisionError: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -216,7 +248,14 @@ export class InMemoryTenantRepository implements TenantRepositoryPort {
           });
         }
       }
-      existing.tenant.subdomain = subdomain;
+      if (existing.tenant.subdomain !== subdomain) {
+        existing.tenant.subdomain = subdomain;
+        existing.tenant.dnsStatus = 'pending';
+        existing.tenant.sslStatus = 'not_configured';
+        existing.tenant.deploymentStatus = 'waiting_for_dns';
+        existing.tenant.dnsCheckedAt = null;
+        existing.tenant.dnsVerifiedAt = null;
+      }
     }
 
     if (input.name != null) {
@@ -252,9 +291,46 @@ export class InMemoryTenantRepository implements TenantRepositoryPort {
     return existing;
   }
 
+  async updateDeployment(
+    id: string,
+    input: UpdateTenantDeploymentInput,
+  ): Promise<TenantWithBranding> {
+    const existing = await this.findById(id);
+    if (!existing) {
+      throw new NotFoundError('Tenant not found');
+    }
+    existing.tenant.dnsStatus = input.dnsStatus;
+    existing.tenant.sslStatus = input.sslStatus;
+    existing.tenant.deploymentStatus = input.deploymentStatus;
+    existing.tenant.dnsCheckedAt = input.dnsCheckedAt;
+    existing.tenant.dnsVerifiedAt = input.dnsVerifiedAt;
+    if (input.lastProvisionedAt !== undefined) {
+      existing.tenant.lastProvisionedAt = input.lastProvisionedAt;
+    }
+    if (input.sslCheckedAt !== undefined) {
+      existing.tenant.sslCheckedAt = input.sslCheckedAt;
+    }
+    if (input.lastProvisionError !== undefined) {
+      existing.tenant.lastProvisionError = input.lastProvisionError;
+    }
+    existing.tenant.updatedAt = new Date().toISOString();
+    this.tenants.set(id, existing.tenant);
+    return existing;
+  }
+
   /** Test helper */
   seed(tenant: TenantRecord, branding: TenantBrandingRecord): void {
-    this.tenants.set(tenant.id, tenant);
+    this.tenants.set(tenant.id, {
+      ...tenant,
+      dnsStatus: tenant.dnsStatus ?? 'not_configured',
+      sslStatus: tenant.sslStatus ?? 'not_configured',
+      deploymentStatus: tenant.deploymentStatus ?? 'not_configured',
+      dnsCheckedAt: tenant.dnsCheckedAt ?? null,
+      dnsVerifiedAt: tenant.dnsVerifiedAt ?? null,
+      lastProvisionedAt: tenant.lastProvisionedAt ?? null,
+      sslCheckedAt: tenant.sslCheckedAt ?? null,
+      lastProvisionError: tenant.lastProvisionError ?? null,
+    });
     this.branding.set(tenant.id, branding);
   }
 
@@ -312,7 +388,12 @@ export class TenantRepository implements TenantRepositoryPort {
         slug,
         subdomain,
         owner_user_id: input.ownerUserId ?? null,
-        status: 'active',
+        status: 'inactive',
+        dns_status: 'pending',
+        ssl_status: 'not_configured',
+        deployment_status: 'waiting_for_dns',
+        dns_checked_at: null,
+        dns_verified_at: null,
       })
       .select(TENANT_COLUMNS)
       .single();
@@ -431,7 +512,17 @@ export class TenantRepository implements TenantRepositoryPort {
 
     const tenantPatch: Record<string, unknown> = {};
     if (input.name != null) tenantPatch.name = input.name.trim();
-    if (input.subdomain != null) tenantPatch.subdomain = input.subdomain.trim().toLowerCase();
+    if (input.subdomain != null) {
+      const subdomain = input.subdomain.trim().toLowerCase();
+      tenantPatch.subdomain = subdomain;
+      if (subdomain !== existing.tenant.subdomain) {
+        tenantPatch.dns_status = 'pending';
+        tenantPatch.ssl_status = 'not_configured';
+        tenantPatch.deployment_status = 'waiting_for_dns';
+        tenantPatch.dns_checked_at = null;
+        tenantPatch.dns_verified_at = null;
+      }
+    }
     if (input.ownerUserId !== undefined) tenantPatch.owner_user_id = input.ownerUserId;
 
     if (Object.keys(tenantPatch).length > 0) {
@@ -482,6 +573,40 @@ export class TenantRepository implements TenantRepositoryPort {
     const { data, error } = await this.client()
       .from('tenants')
       .update({ status })
+      .eq('id', id)
+      .select(TENANT_COLUMNS)
+      .maybeSingle();
+
+    if (error) {
+      throw new ValidationError(error.message);
+    }
+    if (!data) {
+      throw new NotFoundError('Tenant not found');
+    }
+
+    return this.withBranding(mapTenant(data));
+  }
+
+  async updateDeployment(
+    id: string,
+    input: UpdateTenantDeploymentInput,
+  ): Promise<TenantWithBranding> {
+    const { data, error } = await this.client()
+      .from('tenants')
+      .update({
+        dns_status: input.dnsStatus,
+        ssl_status: input.sslStatus,
+        deployment_status: input.deploymentStatus,
+        dns_checked_at: input.dnsCheckedAt,
+        dns_verified_at: input.dnsVerifiedAt,
+        ...(input.lastProvisionedAt !== undefined
+          ? { last_provisioned_at: input.lastProvisionedAt }
+          : {}),
+        ...(input.sslCheckedAt !== undefined ? { ssl_checked_at: input.sslCheckedAt } : {}),
+        ...(input.lastProvisionError !== undefined
+          ? { last_provision_error: input.lastProvisionError }
+          : {}),
+      })
       .eq('id', id)
       .select(TENANT_COLUMNS)
       .maybeSingle();

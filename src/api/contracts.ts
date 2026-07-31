@@ -212,10 +212,47 @@ export interface MasterTenantSummaryResponse {
   slug: string;
   status: 'active' | 'inactive';
   subdomain: string;
+  hostname: string;
   ownerUserId: string | null;
+  ownerAssigned: boolean;
   applicationName: string;
+  dnsStatus: 'not_configured' | 'pending' | 'verified' | 'failed';
+  sslStatus: 'not_configured' | 'pending' | 'verified' | 'failed';
+  deploymentStatus:
+    | 'not_configured'
+    | 'waiting_for_dns'
+    | 'dns_configured'
+    | 'ssl_pending'
+    | 'ready';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TenantDeploymentResponse {
+  hostname: string;
+  loginUrl: string;
+  baseDomain: string;
+  dnsTarget: string;
+  dnsStatus: 'not_configured' | 'pending' | 'verified' | 'failed';
+  sslStatus: 'not_configured' | 'pending' | 'verified' | 'failed';
+  deploymentStatus:
+    | 'not_configured'
+    | 'waiting_for_dns'
+    | 'dns_configured'
+    | 'ssl_pending'
+    | 'ready';
+  dnsRecord: {
+    type: 'CNAME';
+    name: string;
+    target: string;
+  };
+  dnsCheckedAt: string | null;
+  dnsVerifiedAt: string | null;
+  ownerAssigned: boolean;
+  provider: 'manual' | 'netlify';
+  lastProvisionedAt: string | null;
+  sslCheckedAt: string | null;
+  lastProvisionError: string | null;
 }
 
 export interface MasterTenantDetailResponse {
@@ -230,6 +267,23 @@ export interface MasterTenantDetailResponse {
     updatedAt: string;
   };
   branding: TenantBrandingResponse;
+  deployment: TenantDeploymentResponse;
+}
+
+export interface DnsVerificationResponse {
+  status: 'not_configured' | 'pending' | 'verified' | 'failed';
+  hostname: string;
+  expectedTarget: string;
+  deploymentStatus:
+    | 'not_configured'
+    | 'waiting_for_dns'
+    | 'dns_configured'
+    | 'ssl_pending'
+    | 'ready';
+  sslStatus: 'not_configured' | 'pending' | 'verified' | 'failed';
+  message: string;
+  checkedAt: string;
+  tenant: MasterTenantDetailResponse;
 }
 
 export interface CreateTenantApiRequest {

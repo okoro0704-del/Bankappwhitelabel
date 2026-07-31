@@ -262,7 +262,7 @@ Provide `walletId` or `accountId`.
 
 ---
 
-## Master Admin API (white-label Phase 1)
+## Master Admin API (white-label)
 
 Platform-level tenant management. Requires **Master Admin** (`master_admins` membership resolved server-side). Distinct from tenant `/api/admin/*`.
 
@@ -270,12 +270,69 @@ Master Admin is **not** granted by `profiles.role = admin`. Tenant owners are no
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/master/tenants?limit=&offset=` | List tenants |
-| POST | `/api/master/tenants` | Create tenant + branding |
-| GET | `/api/master/tenants/:id` | Tenant detail + branding |
+| GET | `/api/master/tenants?limit=&offset=` | List tenants (includes hostname, DNS, deployment status) |
+| POST | `/api/master/tenants` | Create tenant + branding (**starts `inactive`**) |
+| GET | `/api/master/tenants/:id` | Tenant detail + branding + deployment |
 | PATCH | `/api/master/tenants/:id` | Update name/subdomain/owner/branding |
 | POST | `/api/master/tenants/:id/activate` | Set status `active` |
 | POST | `/api/master/tenants/:id/deactivate` | Set status `inactive` |
+| POST | `/api/master/tenants/:id/verify-dns` | Verify DNS against `DEPLOYMENT_DNS_TARGET` |
+| POST | `/api/master/tenants/:id/verify-ssl` | Verify / refresh SSL for tenant hostname |
+| POST | `/api/master/tenants/:id/provision` | Provision hostname via Netlify (Master only) |
+| GET | `/api/master/tenants/:id/deployment` | Deployment metadata only |
+
+### Netlify provisioning notes
+
+- Uses the shared `NETLIFY_SITE_ID` from server env — clients cannot choose a site.
+- Creates/associates `{subdomain}.{TENANT_BASE_DOMAIN}` as a domain alias.
+- Creates a Netlify DNS CNAME (idempotent; conflicts if an unexpected record exists).
+- Requests SSL via Netlify, then confirms with public DNS + TLS checks.
+- `ready` still requires DNS verified **and** SSL verified.
+- Safe error codes: `DEPLOYMENT_NOT_CONFIGURED`, `NETLIFY_AUTH_FAILED`, `NETLIFY_SITE_NOT_FOUND`, `DNS_PROVISIONING_FAILED`, `DNS_NOT_READY`, `SSL_PROVISIONING_FAILED`, `SSL_NOT_READY`, `DEPLOYMENT_CONFLICT`, `DEPLOYMENT_NOT_READY`.
+- Manual provider refuses `POST .../provision` with `DEPLOYMENT_NOT_CONFIGURED` (use Netlify provider or create DNS externally then Verify).
+- Production startup validates Netlify credentials when `DEPLOYMENT_PROVIDER=netlify`.
+
+### Deployment fields (Master responses)
+
+Authoritative values from the server (never trust client-supplied deployment state):
+
+- `hostname` — `{subdomain}.{TENANT_BASE_DOMAIN}`
+- `loginUrl` — `https://{hostname}/login`
+- `dnsStatus` — `not_configured` \| `pending` \| `verified` \| `failed`
+- `sslStatus` — `not_configured` \| `pending` \| `verified` \| `failed`
+- `deploymentStatus` — `not_configured` \| `waiting_for_dns` \| `dns_configured` \| `ssl_pending` \| `ready`
+- `dnsRecord` — `{ type: "CNAME", name, target }` for handoff instructions
+
+`ready` requires verified DNS **and** verified SSL. Failed/missing checks never report success.
+
+Hostname resolution uses `TENANT_BASE_DOMAIN` only — hosts outside that base return `NOT_FOUND`. Production never falls back to `TENANT_DEV_DEFAULT_SLUG`. `X-Tenant-Slug` is ignored in production.
+
+### CORS (production)
+
+`CORS_ORIGIN` is a comma-separated allow-list. Bare `*` is rejected.
+
+Examples:
+
+```text
+CORS_ORIGIN=https://master.example.com,https://*.app.example.com
+```
+
+Patterns match a single DNS label under the suffix (`https://bank-a.app.example.com`), not arbitrary external origins.
+
+### Verify DNS response
+
+```json
+{
+  "status": "verified",
+  "hostname": "capitaltrust.app.example.com",
+  "expectedTarget": "edgeserver.example.com",
+  "deploymentStatus": "ssl_pending",
+  "sslStatus": "pending",
+  "message": "DNS points at the expected target. SSL has not been verified yet.",
+  "checkedAt": "2026-07-31T12:00:00.000Z",
+  "tenant": { "...": "MasterTenantDetailResponse" }
+}
+```
 
 ### Create tenant body
 

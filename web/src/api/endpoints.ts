@@ -17,9 +17,11 @@ import type {
 } from '../types/api';
 import type {
   CreateTenantRequest,
+  DnsVerificationResult,
   MasterTenantDetail,
   MasterTenantSummary,
   TenantConfiguration,
+  TenantDeploymentInfo,
   UpdateTenantRequest,
 } from '../types/tenant';
 
@@ -155,4 +157,22 @@ export const api = {
     apiRequest<MasterTenantDetail>(`/api/master/tenants/${tenantId}/deactivate`, {
       method: 'POST',
     }),
+
+  masterVerifyTenantDns: (tenantId: string) =>
+    apiRequest<DnsVerificationResult>(`/api/master/tenants/${tenantId}/verify-dns`, {
+      method: 'POST',
+    }),
+
+  masterVerifyTenantSsl: (tenantId: string) =>
+    apiRequest<DnsVerificationResult>(`/api/master/tenants/${tenantId}/verify-ssl`, {
+      method: 'POST',
+    }),
+
+  masterProvisionTenant: (tenantId: string) =>
+    apiRequest<DnsVerificationResult>(`/api/master/tenants/${tenantId}/provision`, {
+      method: 'POST',
+    }),
+
+  masterGetTenantDeployment: (tenantId: string) =>
+    apiRequest<TenantDeploymentInfo>(`/api/master/tenants/${tenantId}/deployment`),
 };

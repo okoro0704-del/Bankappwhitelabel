@@ -78,6 +78,20 @@ export class TransferError extends AppError {
   }
 }
 
+export class DeploymentError extends AppError {
+  public readonly reasonCode: string;
+
+  constructor(
+    reasonCode: string,
+    message: string,
+    statusCode = 400,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, statusCode, reasonCode, { details, expose: true });
+    this.reasonCode = reasonCode;
+  }
+}
+
 export const isAppError = (error: unknown): error is AppError => {
   return error instanceof AppError;
 };

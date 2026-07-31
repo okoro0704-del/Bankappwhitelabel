@@ -2,6 +2,7 @@ import http from 'node:http';
 
 import { dispatchFromUrl } from './router';
 import { buildCorsHeaders } from './cors';
+import { assertProductionEnvSafety, getSafeDeploymentConfigSummary } from '../config/production-guards';
 import logger from '../utils/logger';
 
 const readJsonBody = async (req: http.IncomingMessage): Promise<unknown> => {
@@ -110,10 +111,15 @@ export const createApiServer = () => {
 };
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3000)) => {
+  assertProductionEnvSafety();
+
   const server = createApiServer();
 
   server.listen(port, () => {
-    logger.info({ port }, 'API server listening');
+    logger.info(
+      { port, deployment: getSafeDeploymentConfigSummary() },
+      'API server listening',
+    );
   });
 
   const shutdown = (signal: string) => {

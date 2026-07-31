@@ -10,6 +10,7 @@
     "dev:web": "npm --prefix web run dev",
     "start": "node -r dotenv/config dist/src/index.js",
     "setup:initial-admin": "node -r dotenv/config -r ts-node/register src/scripts/setup-initial-admin.ts",
+    "check:live-env": "npm run build && node -r dotenv/config dist/src/scripts/check-live-env.js",
     "test": "npm run build && node --test \"dist/tests/**/*.test.js\"",
     "test:web": "npm --prefix web run test",
     "db:push": "supabase db push"

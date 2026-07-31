@@ -9,12 +9,15 @@ const redactPaths = [
   'supabaseServiceRoleKey',
   'serviceRoleKey',
   'verificationCode',
+  'netlifyAuthToken',
+  'NETLIFY_AUTH_TOKEN',
   '*.password',
   '*.access_token',
   '*.refresh_token',
   '*.token',
   '*.authorization',
   '*.verificationCode',
+  '*.netlifyAuthToken',
 ];
 
 export const logger = pino({

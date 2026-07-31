@@ -18,7 +18,8 @@ test('CORS allows configured production origins only', () => {
 
   const headers = buildCorsHeaders('https://www.example.com');
   assert.equal(headers['Access-Control-Allow-Origin'], 'https://www.example.com');
-  assert.equal(headers['Access-Control-Allow-Headers'], 'Authorization, Content-Type');
+  assert.match(headers['Access-Control-Allow-Headers'] ?? '', /Authorization/);
+  assert.match(headers['Access-Control-Allow-Headers'] ?? '', /Content-Type/);
   assert.ok(!Object.values(headers).includes('*'));
 });
 

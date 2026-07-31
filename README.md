@@ -125,8 +125,10 @@ Browser
 
 - Frontend may only embed `VITE_SUPABASE_*` anon/public values and `VITE_API_BASE_URL`.
 - `SUPABASE_SERVICE_ROLE_KEY`, bootstrap passwords, and verification pepper stay on the API host.
-- Set `CORS_ORIGIN` to the exact static-site origin(s). Do not use `*`.
+- Set `CORS_ORIGIN` to exact static-site origin(s) and/or `https://*.{TENANT_BASE_DOMAIN}`. Do not use bare `*`.
 - Local development can omit `CORS_ORIGIN` and use the Vite proxy.
+- Set `TENANT_BASE_DOMAIN` and `DEPLOYMENT_DNS_TARGET` for white-label hostnames.
+- Keep `ALLOW_DEV_TENANT_HEADER` and `ALLOW_VERIFICATION_CODE_PEEK` disabled in production.
 
 ## Scope
 
@@ -140,12 +142,14 @@ Implemented:
 - **White-label Phase 1–2:** tenants, branding, Master Admin, TenantResolver, Master API, public tenant config, financial tenant isolation (see `docs/TENANT_ARCHITECTURE.md`)
 - **White-label Phase 3:** Master Admin Dashboard UI at `/master/*` (tenant create/manage/branding)
 - **White-label Phase 4:** runtime tenant branding — one customer build applies `/api/tenant/config` (name, logo, colors, login copy, favicon, document title)
+- **White-label Phase 5:** deployment readiness — hostname generation, DNS instructions, manual DNS verification, Master handoff URLs
+- **White-label Phase 8:** live verification readiness — production Netlify/CORS/Supabase env guards, provisioning fail-closed behavior, deployment smoke documentation
 
 Not in scope (yet):
 
 - Real OTP SMS/email delivery
 - Real bank / payment integrations
-- DNS / Netlify / deployment automation for per-tenant hosts
+- DNS / Netlify / Cloudflare / Vercel **provider automation** (verification is manual/resolver-based only)
 - Owner invitation / email provisioning for tenant owners
 - Production cloud deployment (document only)
 
@@ -168,34 +172,43 @@ tests/                    # Backend tests
 
 ## Environment variables
 
-Copy `.env.example` to `.env`:
+Copy `.env.example` to `.env`. Variables are grouped as:
 
-```bash
-cp .env.example .env
-```
-
-### Client-safe (also mirrored for Vite as `VITE_*`)
+### PUBLIC CLIENT CONFIG (also mirrored as `VITE_*` in `web/.env`)
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` / `VITE_API_BASE_URL` (frontend only)
 
-### Server-only (never expose to browsers)
+### SERVER-ONLY (never expose via `VITE_*` or the browser bundle)
 
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `INITIAL_ADMIN_*`
 - `VERIFICATION_CODE_PEPPER`
-- `ALLOW_VERIFICATION_CODE_PEEK` (dev only; blocked when `NODE_ENV=production`)
-
-### Application
-
+- `PORT` (API server, default `3000`)
 - `LOG_LEVEL`
 - `NODE_ENV`
-- `PORT` (API server, default `3000`)
-- `CORS_ORIGIN` (comma-separated frontend origins for cross-origin API access)
-- `TENANT_DEV_DEFAULT_SLUG` (optional; default `northline` for local tenant resolution)
-- `ALLOW_DEV_TENANT_HEADER` (dev only; must be `true` to honor `X-Tenant-Slug`; blocked conceptually in production by resolver)
+- `CORS_ORIGIN` — exact origins and/or `https://*.{TENANT_BASE_DOMAIN}` (never bare `*`)
+- `TENANT_BASE_DOMAIN` — authoritative base for hostname generation **and** resolution
+- `DEPLOYMENT_DNS_TARGET` — CNAME target for handoff + DNS verification (e.g. `your-site.netlify.app`)
+- `DEPLOYMENT_PROVIDER` — `manual` \| `netlify` (auto-netlify when token + site id present)
+- `NETLIFY_AUTH_TOKEN` — server-only Netlify API credential
+- `NETLIFY_SITE_ID` — shared white-label frontend site id
+- `NETLIFY_DNS_ZONE_ID` — optional Netlify DNS zone id
 
-### Initial admin bootstrap (server-only)
+### BOOTSTRAP (setup command only)
+
+- `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD` / other `INITIAL_ADMIN_*`
+
+### DEVELOPMENT / TEST (ignored or rejected in production)
+
+- `TENANT_DEV_DEFAULT_SLUG` (localhost fallback; **not** used in production)
+- `ALLOW_DEV_TENANT_HEADER` (must be `true` to honor `X-Tenant-Slug`; **blocked** in production)
+- `ALLOW_VERIFICATION_CODE_PEEK` (blocked when `NODE_ENV=production`)
+- `RUN_SUPABASE_INTEGRATION` / `INTEGRATION_ADMIN_EMAIL` / `INTEGRATION_ADMIN_PASSWORD`
+
+Production startup refuses `ALLOW_DEV_TENANT_HEADER=true`, `ALLOW_VERIFICATION_CODE_PEEK=true`, or `CORS_ORIGIN=*`.
+
+### Initial admin bootstrap fields
 
 - `INITIAL_ADMIN_EMAIL`
 - `INITIAL_ADMIN_PASSWORD`
@@ -482,6 +495,9 @@ Identity, role, account type, and balance are never trusted from the request bod
 | PATCH | `/api/master/tenants/:id` | Update tenant/branding (Master Admin) |
 | POST | `/api/master/tenants/:id/activate` | Activate (Master Admin) |
 | POST | `/api/master/tenants/:id/deactivate` | Deactivate (Master Admin) |
+| POST | `/api/master/tenants/:id/verify-dns` | Verify DNS (Master Admin) |
+
+Production tenant hosting uses one shared frontend/backend. Configure `TENANT_BASE_DOMAIN` and `DEPLOYMENT_DNS_TARGET` on the server. See `docs/TENANT_ARCHITECTURE.md` (production topology) and `docs/QA.md` (smoke checklist). Live DNS/SSL/hosting verification is **NOT VERIFIED** until the QA checklist is completed in a real environment.
 
 ### Development-only verification peek
 
@@ -559,10 +575,13 @@ Integration tests exercise Auth sign-in, admin provisioning, duplicate rejection
 - [x] Verification hashes not returned on user APIs
 - [x] Verification plaintext not exposed in normal UI; peek requires admin + flag + non-production
 - [x] Safe API error envelope (no SQL/stack in responses)
-- [x] CORS origin allow-list via `CORS_ORIGIN` (never `*`)
+- [x] CORS origin allow-list via `CORS_ORIGIN` (never `*`; supports `https://*.{base}`)
+- [x] Tenant hostname resolution bound to `TENANT_BASE_DOMAIN` (attacker domains rejected)
+- [x] Production blocks `X-Tenant-Slug` / default-slug fallback / unsafe env flags at startup
 - [x] Authenticated routes protected in API + frontend route guards
 - [x] Idempotency on transfers and funding
 - [x] Concurrent one-time transfer protection (DB CAS) covered by tests
+- [ ] Live production DNS / SSL / hosting smoke checklist (`docs/QA.md`) — **NOT VERIFIED** until completed in a real environment
 
 ## Security reminders
 

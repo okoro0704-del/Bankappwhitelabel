@@ -1,5 +1,11 @@
 import { NotFoundError } from '../../utils/errors';
 import { NORTHLINE_TENANT_SLUG } from '../../tenants/constants';
+import {
+  extractTenantLabelUnderBaseDomain,
+  isLocalDevHostname,
+  stripHostnamePort,
+} from '../../tenants/hostname';
+import { getDeploymentEnvConfig } from '../../config/deployment';
 import type { TenantWithBranding } from '../../types';
 import {
   tenantRepository,
@@ -25,42 +31,26 @@ const headerValue = (
   return raw;
 };
 
-const stripPort = (host: string): string => {
-  // IPv6 in brackets: [::1]:3000
-  if (host.startsWith('[')) {
-    const end = host.indexOf(']');
-    if (end !== -1) return host.slice(0, end + 1);
-  }
-  const colon = host.lastIndexOf(':');
-  if (colon > -1 && host.indexOf(':') === colon) {
-    return host.slice(0, colon);
-  }
-  return host;
-};
-
 /**
- * Extract a tenant label from a hostname.
- * brand-a.example.com → brand-a
- * localhost / 127.0.0.1 → null (use development default)
+ * @deprecated Prefer extractTenantLabelUnderBaseDomain with TENANT_BASE_DOMAIN.
+ * Kept for backward-compatible unit tests of unconstrained label parsing.
+ * Not used for authoritative TenantResolver identity.
  */
 export const extractTenantLabelFromHostname = (hostname: string): string | null => {
-  const host = stripPort(hostname.trim().toLowerCase());
-  if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') {
+  const host = stripHostnamePort(hostname);
+  if (!host || isLocalDevHostname(host)) {
     return null;
   }
 
-  // Bare IP addresses are not subdomain tenants.
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
     return null;
   }
 
   const parts = host.split('.').filter(Boolean);
   if (parts.length < 2) {
-    // Single-label host (e.g. "northline") — treat as slug/subdomain directly.
     return parts[0] ?? null;
   }
 
-  // brand.example.com → brand; ignore www.
   const label = parts[0];
   if (label === 'www' && parts.length >= 3) {
     return parts[1] ?? null;
@@ -81,8 +71,8 @@ const defaultDevSlug = (): string =>
 
 /**
  * Resolves which tenant is being accessed.
- * Authoritative resolution is server-side (hostname / controlled dev overrides).
- * Client-supplied tenant IDs in bodies are never used here.
+ * Authoritative resolution is server-side (hostname under TENANT_BASE_DOMAIN).
+ * Client-supplied tenant IDs in bodies / query / localStorage are never used here.
  */
 export class TenantResolver {
   constructor(private readonly repo: TenantRepositoryPort = tenantRepository) {}
@@ -101,14 +91,32 @@ export class TenantResolver {
       }
     }
 
+    const baseDomain = getDeploymentEnvConfig().baseDomain;
+
     if (hostHeader) {
-      const label = extractTenantLabelFromHostname(hostHeader);
+      const host = stripHostnamePort(hostHeader);
+
+      if (isLocalDevHostname(host)) {
+        if (isProduction()) {
+          throw new NotFoundError('Tenant not found');
+        }
+        return this.requireBySlugOrSubdomain(defaultDevSlug());
+      }
+
+      const label = extractTenantLabelUnderBaseDomain(host, baseDomain);
       if (label) {
         return this.requireBySlugOrSubdomain(label);
       }
+
+      // Present but not a valid tenant host under the configured base domain.
+      throw new NotFoundError('Tenant not found');
     }
 
-    // Local / unresolved host → development default (Northline).
+    if (isProduction()) {
+      throw new NotFoundError('Tenant not found');
+    }
+
+    // Local / missing host → development default only.
     return this.requireBySlugOrSubdomain(defaultDevSlug());
   }
 
@@ -142,3 +150,6 @@ export const setTenantResolverForTests = (resolver: TenantResolver): void => {
 export const resetTenantResolverForTests = (): void => {
   activeTenantResolver = defaultTenantResolver;
 };
+
+// Re-export for tests and callers that need the hardened extractor.
+export { extractTenantLabelUnderBaseDomain } from '../../tenants/hostname';

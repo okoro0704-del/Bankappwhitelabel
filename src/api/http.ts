@@ -3,6 +3,7 @@ import {
   AuthenticationError,
   AuthorizationError,
   ConflictError,
+  DeploymentError,
   NotFoundError,
   TransferError,
   ValidationError,
@@ -32,6 +33,15 @@ const KNOWN_REASON_CODES = [
   'INVALID_AMOUNT',
   'UNAUTHORIZED',
   'METHOD_NOT_ALLOWED',
+  'DEPLOYMENT_NOT_CONFIGURED',
+  'NETLIFY_AUTH_FAILED',
+  'NETLIFY_SITE_NOT_FOUND',
+  'DNS_PROVISIONING_FAILED',
+  'DNS_NOT_READY',
+  'SSL_PROVISIONING_FAILED',
+  'SSL_NOT_READY',
+  'DEPLOYMENT_CONFLICT',
+  'DEPLOYMENT_NOT_READY',
 ] as const;
 
 export const ok = <T>(data: T, statusCode = 200): ApiResult<{ data: T }> => ({
@@ -75,6 +85,9 @@ const mapAuthCode = (error: AppError): string => {
     return 'FORBIDDEN';
   }
   if (error instanceof TransferError) {
+    return error.reasonCode;
+  }
+  if (error instanceof DeploymentError) {
     return error.reasonCode;
   }
   if (error instanceof ValidationError) {

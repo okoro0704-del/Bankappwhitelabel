@@ -22,6 +22,7 @@ import type {
   VerificationStageResponse,
   WalletResponse,
 } from './contracts';
+import { buildTenantDeploymentInfo } from '../services/tenants/tenant-service';
 
 export const toProfileResponse = (profile: ProfileRecord): ProfileResponse => ({
   id: profile.id,
@@ -188,27 +189,31 @@ export const toMasterTenantSummaryResponse = (
 
 export const toMasterTenantDetailResponse = (
   bundle: TenantWithBranding,
-): MasterTenantDetailResponse => ({
-  tenant: {
-    id: bundle.tenant.id,
-    name: bundle.tenant.name,
-    slug: bundle.tenant.slug,
-    status: bundle.tenant.status,
-    subdomain: bundle.tenant.subdomain,
-    ownerUserId: bundle.tenant.ownerUserId,
-    createdAt: bundle.tenant.createdAt,
-    updatedAt: bundle.tenant.updatedAt,
-  },
-  branding: {
-    applicationName: bundle.branding.applicationName,
-    logoUrl: bundle.branding.logoUrl,
-    faviconUrl: bundle.branding.faviconUrl,
-    primaryColor: bundle.branding.primaryColor,
-    secondaryColor: bundle.branding.secondaryColor,
-    accentColor: bundle.branding.accentColor,
-    loginHeadline: bundle.branding.loginHeadline,
-    loginSubtitle: bundle.branding.loginSubtitle,
-    supportEmail: bundle.branding.supportEmail,
-    supportPhone: bundle.branding.supportPhone,
-  },
-});
+): MasterTenantDetailResponse => {
+  const deployment = buildTenantDeploymentInfo(bundle);
+  return {
+    tenant: {
+      id: bundle.tenant.id,
+      name: bundle.tenant.name,
+      slug: bundle.tenant.slug,
+      status: bundle.tenant.status,
+      subdomain: bundle.tenant.subdomain,
+      ownerUserId: bundle.tenant.ownerUserId,
+      createdAt: bundle.tenant.createdAt,
+      updatedAt: bundle.tenant.updatedAt,
+    },
+    branding: {
+      applicationName: bundle.branding.applicationName,
+      logoUrl: bundle.branding.logoUrl,
+      faviconUrl: bundle.branding.faviconUrl,
+      primaryColor: bundle.branding.primaryColor,
+      secondaryColor: bundle.branding.secondaryColor,
+      accentColor: bundle.branding.accentColor,
+      loginHeadline: bundle.branding.loginHeadline,
+      loginSubtitle: bundle.branding.loginSubtitle,
+      supportEmail: bundle.branding.supportEmail,
+      supportPhone: bundle.branding.supportPhone,
+    },
+    deployment,
+  };
+};

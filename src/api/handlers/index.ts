@@ -512,6 +512,74 @@ export const apiHandlers = {
     });
   },
 
+  async masterVerifyTenantDns(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const result = await tenantService.verifyTenantDns(actor, id);
+      return ok({
+        status: result.dnsStatus,
+        hostname: result.hostname,
+        expectedTarget: result.expectedTarget,
+        deploymentStatus: result.deploymentStatus,
+        sslStatus: result.sslStatus,
+        message: result.message,
+        checkedAt: result.checkedAt,
+        code: result.code ?? null,
+        tenant: toMasterTenantDetailResponse(result.tenant),
+      });
+    });
+  },
+
+  async masterVerifyTenantSsl(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const result = await tenantService.verifyTenantSsl(actor, id);
+      return ok({
+        status: result.sslStatus,
+        hostname: result.hostname,
+        expectedTarget: result.expectedTarget,
+        deploymentStatus: result.deploymentStatus,
+        dnsStatus: result.dnsStatus,
+        sslStatus: result.sslStatus,
+        message: result.message,
+        checkedAt: result.checkedAt,
+        code: result.code ?? null,
+        tenant: toMasterTenantDetailResponse(result.tenant),
+      });
+    });
+  },
+
+  async masterProvisionTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const result = await tenantService.provisionTenant(actor, id);
+      return ok({
+        status: result.deploymentStatus,
+        hostname: result.hostname,
+        expectedTarget: result.expectedTarget,
+        deploymentStatus: result.deploymentStatus,
+        dnsStatus: result.dnsStatus,
+        sslStatus: result.sslStatus,
+        message: result.message,
+        checkedAt: result.checkedAt,
+        code: result.code ?? null,
+        tenant: toMasterTenantDetailResponse(result.tenant),
+      });
+    });
+  },
+
+  async masterGetTenantDeployment(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const deployment = await tenantService.getDeploymentForMaster(actor, id);
+      return ok(deployment);
+    });
+  },
+
   async health() {
     return ok({ status: 'ok' });
   },

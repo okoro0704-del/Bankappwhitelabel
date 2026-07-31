@@ -1,5 +1,16 @@
 export type TenantStatus = 'active' | 'inactive';
 
+export type TenantDnsStatus = 'not_configured' | 'pending' | 'verified' | 'failed';
+
+export type TenantSslStatus = 'not_configured' | 'pending' | 'verified' | 'failed';
+
+export type TenantDeploymentStatus =
+  | 'not_configured'
+  | 'waiting_for_dns'
+  | 'dns_configured'
+  | 'ssl_pending'
+  | 'ready';
+
 export interface TenantBranding {
   applicationName: string;
   logoUrl: string | null;
@@ -33,14 +44,43 @@ export interface TenantConfiguration {
   branding: TenantBranding;
 }
 
+export interface TenantDnsRecordInstructions {
+  type: 'CNAME';
+  name: string;
+  target: string;
+}
+
+export interface TenantDeploymentInfo {
+  hostname: string;
+  loginUrl: string;
+  baseDomain: string;
+  dnsTarget: string;
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
+  dnsRecord: TenantDnsRecordInstructions;
+  dnsCheckedAt: string | null;
+  dnsVerifiedAt: string | null;
+  lastProvisionedAt: string | null;
+  sslCheckedAt: string | null;
+  lastProvisionError: string | null;
+  ownerAssigned: boolean;
+  provider: 'manual' | 'netlify';
+}
+
 export interface MasterTenantSummary {
   id: string;
   name: string;
   slug: string;
   status: TenantStatus;
   subdomain: string;
+  hostname: string;
   ownerUserId: string | null;
+  ownerAssigned: boolean;
   applicationName: string;
+  dnsStatus: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  deploymentStatus: TenantDeploymentStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,6 +88,20 @@ export interface MasterTenantSummary {
 export interface MasterTenantDetail {
   tenant: Tenant;
   branding: TenantBranding;
+  deployment: TenantDeploymentInfo;
+}
+
+export interface DnsVerificationResult {
+  status: TenantDnsStatus | TenantSslStatus | TenantDeploymentStatus;
+  hostname: string;
+  expectedTarget: string;
+  deploymentStatus: TenantDeploymentStatus;
+  dnsStatus?: TenantDnsStatus;
+  sslStatus: TenantSslStatus;
+  message: string;
+  checkedAt: string;
+  code?: string | null;
+  tenant: MasterTenantDetail;
 }
 
 export interface CreateTenantRequest {

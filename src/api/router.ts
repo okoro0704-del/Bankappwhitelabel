@@ -87,6 +87,18 @@ const routes: Route[] = [
   route('POST', '/api/master/tenants/:id/deactivate', (input) =>
     apiHandlers.masterDeactivateTenant(input),
   ),
+  route('POST', '/api/master/tenants/:id/verify-dns', (input) =>
+    apiHandlers.masterVerifyTenantDns(input),
+  ),
+  route('POST', '/api/master/tenants/:id/verify-ssl', (input) =>
+    apiHandlers.masterVerifyTenantSsl(input),
+  ),
+  route('POST', '/api/master/tenants/:id/provision', (input) =>
+    apiHandlers.masterProvisionTenant(input),
+  ),
+  route('GET', '/api/master/tenants/:id/deployment', (input) =>
+    apiHandlers.masterGetTenantDeployment(input),
+  ),
 
   // Isolated from normal user APIs — development/test only
   route('GET', '/api/dev/transfers/:id/verification-code', (input) =>
