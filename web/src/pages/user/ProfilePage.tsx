@@ -1,11 +1,15 @@
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Badge, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Button } from '../../components/ui/Button';
+import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useAsyncData } from '../../hooks/useAsyncData';
-import { formatDate, fullName, statusLabel } from '../../utils/format';
+import { formatAccountNumber, formatDate, fullName } from '../../utils/format';
 
 export function ProfilePage() {
-  const { appUser, session } = useAuth();
+  const { appUser, session, signOut } = useAuth();
+  const navigate = useNavigate();
   const profile = useAsyncData(() => api.getProfile(), []);
   const account = useAsyncData(() => api.getAccount(), []);
 
@@ -19,7 +23,12 @@ export function ProfilePage() {
   }
 
   if (profile.error || !profile.data) {
-    return <ErrorState description={profile.error ?? 'Profile unavailable'} onRetry={() => void profile.reload()} />;
+    return (
+      <ErrorState
+        description={profile.error ?? 'Profile unavailable'}
+        onRetry={() => void profile.reload()}
+      />
+    );
   }
 
   const p = profile.data;
@@ -31,7 +40,7 @@ export function ProfilePage() {
           <h1>Profile</h1>
           <p className="page-subtitle">Information from your authenticated session</p>
         </div>
-        <Badge tone={p.status === 'active' ? 'success' : 'warning'}>{statusLabel(p.status)}</Badge>
+        <StatusBadge status={p.status} />
       </div>
 
       <div className="grid-2">
@@ -62,15 +71,19 @@ export function ProfilePage() {
           <dl className="definition-list">
             <div>
               <dt>Role</dt>
-              <dd>{statusLabel(p.role)}</dd>
+              <dd>{p.role === 'admin' ? 'Admin' : 'User'}</dd>
             </div>
             <div>
               <dt>Account status</dt>
-              <dd>{account.data ? statusLabel(account.data.accountStatus) : '—'}</dd>
+              <dd>
+                {account.data ? <StatusBadge status={account.data.accountStatus} /> : '—'}
+              </dd>
             </div>
             <div>
               <dt>Account number</dt>
-              <dd>{account.data?.accountNumber ?? '—'}</dd>
+              <dd>
+                {account.data ? formatAccountNumber(account.data.accountNumber) : '—'}
+              </dd>
             </div>
             <div>
               <dt>Profile created</dt>
@@ -88,10 +101,6 @@ export function ProfilePage() {
             <dd>{appUser?.email ?? p.email}</dd>
           </div>
           <div>
-            <dt>Session user id</dt>
-            <dd style={{ wordBreak: 'break-all' }}>{appUser?.userId ?? '—'}</dd>
-          </div>
-          <div>
             <dt>Session expires</dt>
             <dd>
               {session?.expires_at
@@ -100,11 +109,22 @@ export function ProfilePage() {
             </dd>
           </div>
         </dl>
+        <div style={{ marginTop: '1.25rem' }}>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              await signOut();
+              navigate('/login');
+            }}
+          >
+            Sign out
+          </Button>
+        </div>
       </div>
 
       <Alert tone="info">
-        Profile fields are read-only in this release. There is no user-facing profile update
-        endpoint in the frozen API; admins can update allowed fields via the admin console.
+        Profile fields are read-only. There is no user-facing profile update endpoint in the frozen
+        API.
       </Alert>
     </div>
   );

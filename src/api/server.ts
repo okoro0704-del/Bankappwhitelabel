@@ -1,6 +1,7 @@
 import http from 'node:http';
 
 import { dispatchFromUrl } from './router';
+import { buildCorsHeaders } from './cors';
 import logger from '../utils/logger';
 
 const readJsonBody = async (req: http.IncomingMessage): Promise<unknown> => {
@@ -25,20 +26,52 @@ const readJsonBody = async (req: http.IncomingMessage): Promise<unknown> => {
   }
 };
 
+const writeJson = (
+  res: http.ServerResponse,
+  statusCode: number,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    ...extraHeaders,
+  };
+
+  if (statusCode === 204) {
+    const { 'Content-Type': _ignored, ...withoutJson } = headers;
+    res.writeHead(204, withoutJson);
+    res.end();
+    return;
+  }
+
+  res.writeHead(statusCode, headers);
+  res.end(JSON.stringify(body));
+};
+
 export const createApiServer = () => {
   return http.createServer(async (req, res) => {
     const method = req.method ?? 'GET';
     const url = req.url ?? '/';
     const authorization = req.headers.authorization ?? null;
+    const requestOrigin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+    const corsHeaders = buildCorsHeaders(requestOrigin);
 
     try {
+      if (method.toUpperCase() === 'OPTIONS') {
+        writeJson(res, 204, null, corsHeaders);
+        return;
+      }
+
       const body = await readJsonBody(req);
       if (body && typeof body === 'object' && '__invalidJson' in body) {
-        res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        res.end(
-          JSON.stringify({
+        writeJson(
+          res,
+          400,
+          {
             error: { code: 'VALIDATION_ERROR', message: 'Request body must be valid JSON' },
-          }),
+          },
+          corsHeaders,
         );
         return;
       }
@@ -50,27 +83,16 @@ export const createApiServer = () => {
         body,
       });
 
-      if (result.statusCode === 204) {
-        res.writeHead(204, { 'Cache-Control': 'no-store' });
-        res.end();
-        return;
-      }
-
-      res.writeHead(result.statusCode, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-      });
-      res.end(JSON.stringify(result.body));
+      writeJson(res, result.statusCode, result.body, corsHeaders);
     } catch (error) {
       logger.error({ error }, 'API server failure');
-      res.writeHead(500, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-      });
-      res.end(
-        JSON.stringify({
+      writeJson(
+        res,
+        500,
+        {
           error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
-        }),
+        },
+        corsHeaders,
       );
     }
   });
@@ -93,7 +115,6 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3000)) => {
       process.exit(0);
     });
 
-    // Force-exit if connections hang.
     setTimeout(() => process.exit(1), 10_000).unref();
   };
 

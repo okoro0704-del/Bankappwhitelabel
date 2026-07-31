@@ -1128,6 +1128,53 @@ img {
   color: var(--nl-warning);
 }
 
+.nav-icon {
+  width: 1.1rem;
+  display: inline-flex;
+  justify-content: center;
+  opacity: 0.85;
+  font-size: 0.95rem;
+}
+
+.list-row-btn {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--nl-line);
+  border-radius: var(--nl-radius);
+  background: var(--nl-paper);
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.list-row-btn:hover {
+  border-color: var(--nl-accent);
+  background: rgba(31, 111, 104, 0.03);
+}
+
+a.list-row-btn {
+  text-decoration: none;
+}
+
+.mono-break {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  word-break: break-all;
+}
+
+.amount-debit {
+  color: var(--nl-ink);
+  font-weight: 600;
+}
+
+.amount-credit {
+  color: var(--nl-success);
+  font-weight: 600;
+}
+
 @keyframes xfer-spin {
   to {
     transform: rotate(360deg);

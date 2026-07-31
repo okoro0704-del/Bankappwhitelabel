@@ -2,29 +2,45 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Badge, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Alert, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Button } from '../../components/ui/Button';
+import { StatusBadge, TypeBadge } from '../../components/ui/StatusBadges';
+import { TransactionDetailModal } from '../../components/TransactionDetailModal';
+import { TransferDetailModal } from '../../components/TransferDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
   accountTypeLabel,
+  amountSignClass,
   formatAccountNumber,
   formatDate,
   formatMoney,
   fullName,
-  statusLabel,
 } from '../../utils/format';
+import type { Transaction, Transfer } from '../../types/api';
 
 export function UserDashboardPage() {
   const { appUser } = useAuth();
   const [hideBalance, setHideBalance] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedTransfer, setSelectedTransfer] = useState<Transfer | null>(null);
 
   const wallet = useAsyncData(() => api.getWallet(), []);
   const account = useAsyncData(() => api.getAccount(), []);
   const transactions = useAsyncData(() => api.getTransactions({ limit: 5, offset: 0 }), []);
+  const transfers = useAsyncData(() => api.getTransfers({ limit: 5, offset: 0 }), []);
 
-  const loading = wallet.loading || account.loading || transactions.loading;
-  const error = wallet.error || account.error || transactions.error;
-
+  const loading =
+    wallet.loading || account.loading || transactions.loading || transfers.loading;
+  const error = wallet.error || account.error || transactions.error || transfers.error;
+  const currency = wallet.data?.currency ?? 'USD';
   const name = appUser ? fullName(appUser.firstName, appUser.lastName) : '';
+
+  function refreshAll() {
+    void wallet.reload();
+    void account.reload();
+    void transactions.reload();
+    void transfers.reload();
+  }
 
   return (
     <div className="page">
@@ -33,18 +49,12 @@ export function UserDashboardPage() {
           <h1>Hello{appUser ? `, ${appUser.firstName}` : ''}</h1>
           <p className="page-subtitle">Your Northline overview</p>
         </div>
+        <Button variant="secondary" size="sm" onClick={refreshAll} disabled={loading}>
+          Refresh
+        </Button>
       </div>
 
-      {error ? (
-        <ErrorState
-          description={error}
-          onRetry={() => {
-            void wallet.reload();
-            void account.reload();
-            void transactions.reload();
-          }}
-        />
-      ) : null}
+      {error ? <ErrorState description={error} onRetry={refreshAll} /> : null}
 
       <div className="dashboard-hero">
         <div className="card card-pad balance-card">
@@ -68,9 +78,7 @@ export function UserDashboardPage() {
                 </button>
               </div>
               <p className="balance-display" aria-live="polite">
-                {hideBalance
-                  ? '••••••'
-                  : formatMoney(wallet.data.balance, wallet.data.currency)}
+                {hideBalance ? '••••••' : formatMoney(wallet.data.balance, currency)}
               </p>
               <div className="stack-sm" style={{ marginTop: '1rem' }}>
                 <p>
@@ -80,11 +88,7 @@ export function UserDashboardPage() {
                   {formatAccountNumber(account.data.accountNumber)} ·{' '}
                   {accountTypeLabel(account.data.accountType)}
                 </p>
-                <div>
-                  <Badge tone={account.data.accountStatus === 'active' ? 'success' : 'warning'}>
-                    {statusLabel(account.data.accountStatus)}
-                  </Badge>
-                </div>
+                <StatusBadge status={account.data.accountStatus} />
               </div>
             </>
           ) : null}
@@ -109,92 +113,126 @@ export function UserDashboardPage() {
         </div>
       </div>
 
-      <div className="card card-pad">
-        <div className="card-header">
-          <div>
-            <h2 style={{ fontSize: '1.15rem' }}>Recent transactions</h2>
-            <p className="muted">Loaded from your ledger</p>
-          </div>
-          <Link className="btn btn-secondary btn-sm" to="/app/transactions">
-            View all
-          </Link>
-        </div>
-
-        {transactions.loading && !transactions.data ? (
-          <div className="stack">
-            <Skeleton height={44} />
-            <Skeleton height={44} />
-            <Skeleton height={44} />
-          </div>
-        ) : null}
-
-        {transactions.data && transactions.data.items.length === 0 ? (
-          <EmptyState
-            title="No transactions yet"
-            description="When funding or transfers post, they will appear here."
-            action={
-              <Link className="btn btn-secondary btn-sm" to="/app/account">
-                View account
-              </Link>
-            }
-          />
-        ) : null}
-
-        {transactions.data && transactions.data.items.length > 0 ? (
-          <>
-            <div className="table-wrap table-desktop">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Type</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.data.items.map((tx) => (
-                    <tr key={tx.id}>
-                      <td>{tx.reference}</td>
-                      <td>{statusLabel(tx.type)}</td>
-                      <td>{formatMoney(tx.amount, wallet.data?.currency ?? 'USD')}</td>
-                      <td>
-                        <Badge tone={tx.status === 'completed' ? 'success' : 'neutral'}>
-                          {statusLabel(tx.status)}
-                        </Badge>
-                      </td>
-                      <td>{formatDate(tx.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <div className="grid-2">
+        <div className="card card-pad">
+          <div className="card-header">
+            <div>
+              <h2 style={{ fontSize: '1.15rem' }}>Recent transactions</h2>
+              <p className="muted">From your ledger</p>
             </div>
-            <div className="mobile-list">
+            <Link className="btn btn-secondary btn-sm" to="/app/transactions">
+              View all
+            </Link>
+          </div>
+          {transactions.loading && !transactions.data ? (
+            <div className="stack">
+              <Skeleton height={44} />
+              <Skeleton height={44} />
+            </div>
+          ) : null}
+          {transactions.data?.items.length === 0 ? (
+            <EmptyState
+              title="No transactions yet"
+              description="Funding and transfers will appear here."
+            />
+          ) : null}
+          {transactions.data && transactions.data.items.length > 0 ? (
+            <div className="stack-sm">
               {transactions.data.items.map((tx) => (
-                <div className="mobile-row" key={tx.id}>
+                <button
+                  key={tx.id}
+                  type="button"
+                  className="list-row-btn"
+                  onClick={() => setSelectedTx(tx)}
+                >
                   <div className="mobile-row-top">
-                    <strong>{formatMoney(tx.amount, wallet.data?.currency ?? 'USD')}</strong>
-                    <Badge tone={tx.status === 'completed' ? 'success' : 'neutral'}>
-                      {statusLabel(tx.status)}
-                    </Badge>
+                    <span className={amountSignClass(tx.type)}>
+                      {formatMoney(tx.amount, currency)}
+                    </span>
+                    <StatusBadge status={tx.status} />
                   </div>
                   <div className="mobile-meta">
-                    <span>{tx.reference}</span>
-                    <span>
-                      {statusLabel(tx.type)} · {formatDate(tx.createdAt)}
+                    <span className="row" style={{ gap: '0.4rem' }}>
+                      <TypeBadge type={tx.type} />
+                      <span>{formatDate(tx.createdAt)}</span>
                     </span>
+                    <span className="mono-break">{tx.reference}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
-          </>
-        ) : null}
+          ) : null}
+        </div>
+
+        <div className="card card-pad">
+          <div className="card-header">
+            <div>
+              <h2 style={{ fontSize: '1.15rem' }}>Recent transfers</h2>
+              <p className="muted">Transfer activity</p>
+            </div>
+            <Link className="btn btn-secondary btn-sm" to="/app/transfer">
+              New transfer
+            </Link>
+          </div>
+          {transfers.loading && !transfers.data ? (
+            <div className="stack">
+              <Skeleton height={44} />
+              <Skeleton height={44} />
+            </div>
+          ) : null}
+          {transfers.data?.items.length === 0 ? (
+            <EmptyState
+              title="No transfers yet"
+              description="Start a transfer when you are ready."
+              action={
+                <Link className="btn btn-secondary btn-sm" to="/app/transfer">
+                  Transfer
+                </Link>
+              }
+            />
+          ) : null}
+          {transfers.data && transfers.data.items.length > 0 ? (
+            <div className="stack-sm">
+              {transfers.data.items.map((tr) => (
+                <button
+                  key={tr.id}
+                  type="button"
+                  className="list-row-btn"
+                  onClick={() => setSelectedTransfer(tr)}
+                >
+                  <div className="mobile-row-top">
+                    <strong>{formatMoney(tr.amount, currency)}</strong>
+                    <StatusBadge status={tr.status} />
+                  </div>
+                  <div className="mobile-meta">
+                    <span>{tr.recipient.name}</span>
+                    <span>
+                      {tr.reference} · {formatDate(tr.createdAt)}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <Alert tone="info">
         This is a fictional banking demo. Balances and transfers do not move real money.
       </Alert>
+
+      <TransactionDetailModal
+        transactionId={selectedTx?.id ?? null}
+        currency={currency}
+        initial={selectedTx}
+        onClose={() => setSelectedTx(null)}
+      />
+      <TransferDetailModal
+        transferId={selectedTransfer?.id ?? null}
+        currency={currency}
+        initial={selectedTransfer}
+        onClose={() => setSelectedTransfer(null)}
+      />
     </div>
   );
 }

@@ -1,21 +1,24 @@
+import { Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Badge, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
   accountTypeLabel,
   formatAccountNumber,
+  formatDate,
   formatMoney,
   fullName,
-  statusLabel,
 } from '../../utils/format';
 
 export function AccountPage() {
   const { appUser } = useAuth();
   const account = useAsyncData(() => api.getAccount(), []);
   const wallet = useAsyncData(() => api.getWallet(), []);
+  const profile = useAsyncData(() => api.getProfile(), []);
 
-  if (account.loading || wallet.loading) {
+  if (account.loading || wallet.loading || profile.loading) {
     return (
       <div className="page">
         <Skeleton height={32} width="40%" />
@@ -31,6 +34,7 @@ export function AccountPage() {
         onRetry={() => {
           void account.reload();
           void wallet.reload();
+          void profile.reload();
         }}
       />
     );
@@ -45,9 +49,7 @@ export function AccountPage() {
           <h1>Account</h1>
           <p className="page-subtitle">Details provided by the banking API</p>
         </div>
-        <Badge tone={data.accountStatus === 'active' ? 'success' : 'warning'}>
-          {statusLabel(data.accountStatus)}
-        </Badge>
+        <StatusBadge status={data.accountStatus} />
       </div>
 
       <div className="grid-2">
@@ -56,7 +58,13 @@ export function AccountPage() {
           <dl className="definition-list">
             <div>
               <dt>Account holder</dt>
-              <dd>{appUser ? fullName(appUser.firstName, appUser.lastName) : '—'}</dd>
+              <dd>
+                {appUser
+                  ? fullName(appUser.firstName, appUser.lastName)
+                  : profile.data
+                    ? fullName(profile.data.firstName, profile.data.lastName)
+                    : '—'}
+              </dd>
             </div>
             <div>
               <dt>Account number</dt>
@@ -68,8 +76,16 @@ export function AccountPage() {
             </div>
             <div>
               <dt>Status</dt>
-              <dd>{statusLabel(data.accountStatus)}</dd>
+              <dd>
+                <StatusBadge status={data.accountStatus} />
+              </dd>
             </div>
+            {profile.data ? (
+              <div>
+                <dt>Profile created</dt>
+                <dd>{formatDate(profile.data.createdAt)}</dd>
+              </div>
+            ) : null}
           </dl>
         </div>
 
@@ -88,9 +104,17 @@ export function AccountPage() {
             </div>
             <div>
               <dt>Last wallet update</dt>
-              <dd>{new Date(wallet.data.updatedAt).toLocaleString()}</dd>
+              <dd>{formatDate(wallet.data.updatedAt)}</dd>
             </div>
           </dl>
+          <div className="row" style={{ marginTop: '1.25rem' }}>
+            <Link className="btn btn-primary" to="/app/transfer">
+              Transfer
+            </Link>
+            <Link className="btn btn-secondary" to="/app/transactions">
+              Transactions
+            </Link>
+          </div>
         </div>
       </div>
 

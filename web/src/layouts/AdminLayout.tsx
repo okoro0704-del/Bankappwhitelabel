@@ -4,13 +4,13 @@ import { useAuth } from '../auth/AuthProvider';
 import { fullName } from '../utils/format';
 
 const ADMIN_NAV = [
-  { to: '/admin', label: 'Dashboard', end: true },
-  { to: '/admin/users', label: 'Users', end: false },
-  { to: '/admin/accounts', label: 'Accounts', end: false },
-  { to: '/admin/funding', label: 'Wallet funding', end: false },
-  { to: '/admin/transactions', label: 'Transactions', end: false },
-  { to: '/admin/transfers', label: 'Transfers', end: false },
-  { to: '/admin/settings', label: 'Settings', end: false },
+  { to: '/admin', label: 'Dashboard', icon: '⌂', end: true },
+  { to: '/admin/users', label: 'Users', icon: '◎', end: false },
+  { to: '/admin/accounts', label: 'Accounts', icon: '▭', end: false },
+  { to: '/admin/funding', label: 'Wallet funding', icon: '+', end: false },
+  { to: '/admin/transactions', label: 'Transactions', icon: '☰', end: false },
+  { to: '/admin/transfers', label: 'Transfers', icon: '↗', end: false },
+  { to: '/admin/settings', label: 'Settings', icon: '⚙', end: false },
 ];
 
 export function AdminLayout() {
@@ -54,6 +54,9 @@ export function AdminLayout() {
                   end={item.end}
                   className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 >
+                  <span className="nav-icon" aria-hidden>
+                    {item.icon}
+                  </span>
                   {item.label}
                 </NavLink>
               </li>
@@ -116,6 +119,9 @@ export function AdminLayout() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 onClick={() => setMobileOpen(false)}
               >
+                <span className="nav-icon" aria-hidden>
+                  {item.icon}
+                </span>
                 {item.label}
               </NavLink>
             ))}

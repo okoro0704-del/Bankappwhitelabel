@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
-import { Badge, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { StatusBadge } from '../../components/ui/StatusBadges';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Field';
 import { useAsyncData } from '../../hooks/useAsyncData';
@@ -11,7 +12,6 @@ import {
   formatDate,
   formatMoney,
   fullName,
-  statusLabel,
 } from '../../utils/format';
 
 const PAGE_SIZE = 20;
@@ -129,11 +129,7 @@ export function AdminUsersPage() {
                       <td>{formatAccountNumber(row.account.accountNumber)}</td>
                       <td>{accountTypeLabel(row.account.accountType)}</td>
                       <td>
-                        <Badge
-                          tone={row.account.accountStatus === 'active' ? 'success' : 'warning'}
-                        >
-                          {statusLabel(row.account.accountStatus)}
-                        </Badge>
+                        <StatusBadge status={row.account.accountStatus} />
                       </td>
                       <td>{formatMoney(row.account.balance, row.account.currency)}</td>
                       <td>{formatDate(row.profile.createdAt)}</td>
@@ -156,9 +152,7 @@ export function AdminUsersPage() {
                 <div className="mobile-row" key={row.profile.userId}>
                   <div className="mobile-row-top">
                     <strong>{fullName(row.profile.firstName, row.profile.lastName)}</strong>
-                    <Badge tone={row.account.accountStatus === 'active' ? 'success' : 'warning'}>
-                      {statusLabel(row.account.accountStatus)}
-                    </Badge>
+                    <StatusBadge status={row.account.accountStatus} />
                   </div>
                   <div className="mobile-meta">
                     <span>{row.profile.email}</span>

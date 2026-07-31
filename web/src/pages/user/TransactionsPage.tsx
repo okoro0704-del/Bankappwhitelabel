@@ -1,10 +1,18 @@
 import { useMemo, useState } from 'react';
 import { api } from '../../api/endpoints';
-import { Badge, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
-import { Button } from '../../components/ui/Button';
+import { EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { Input, Select } from '../../components/ui/Field';
+import { StatusBadge, TypeBadge } from '../../components/ui/StatusBadges';
+import { PaginationBar } from '../../components/PaginationBar';
+import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
-import { formatDate, formatMoney, statusLabel } from '../../utils/format';
+import {
+  amountSignClass,
+  formatDate,
+  formatMoney,
+  matchesDateFilter,
+} from '../../utils/format';
+import type { Transaction } from '../../types/api';
 
 const PAGE_SIZE = 20;
 
@@ -12,18 +20,25 @@ export function TransactionsPage() {
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [selected, setSelected] = useState<Transaction | null>(null);
 
+  const wallet = useAsyncData(() => api.getWallet(), []);
   const query = useAsyncData(
     () => api.getTransactions({ limit: PAGE_SIZE, offset }),
     [offset],
   );
 
+  const currency = wallet.data?.currency ?? 'USD';
+
   const filtered = useMemo(() => {
     const items = query.data?.items ?? [];
     const q = search.trim().toLowerCase();
     return items.filter((tx) => {
-      const statusOk = statusFilter === 'all' || tx.status === statusFilter;
-      if (!statusOk) return false;
+      if (statusFilter !== 'all' && tx.status !== statusFilter) return false;
+      if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
+      if (!matchesDateFilter(tx.createdAt, dateFilter)) return false;
       if (!q) return true;
       return (
         tx.reference.toLowerCase().includes(q) ||
@@ -31,11 +46,9 @@ export function TransactionsPage() {
         (tx.description ?? '').toLowerCase().includes(q)
       );
     });
-  }, [query.data, search, statusFilter]);
+  }, [query.data, search, statusFilter, typeFilter, dateFilter]);
 
   const total = query.data?.total ?? 0;
-  const canPrev = offset > 0;
-  const canNext = offset + PAGE_SIZE < total;
 
   return (
     <div className="page">
@@ -64,6 +77,26 @@ export function TransactionsPage() {
             <option value="pending">Pending</option>
             <option value="failed">Failed</option>
           </Select>
+          <Select
+            aria-label="Filter by type"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">All types</option>
+            <option value="funding">Funding</option>
+            <option value="debit">Debit</option>
+            <option value="credit">Credit</option>
+          </Select>
+          <Select
+            aria-label="Filter by date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          >
+            <option value="all">Any time</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+          </Select>
         </div>
 
         {query.loading && !query.data ? (
@@ -91,27 +124,39 @@ export function TransactionsPage() {
               <table className="table">
                 <thead>
                   <tr>
+                    <th>Date</th>
                     <th>Reference</th>
                     <th>Type</th>
+                    <th>Description</th>
                     <th>Amount</th>
                     <th>Status</th>
-                    <th>Date</th>
-                    <th>Description</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((tx) => (
                     <tr key={tx.id}>
-                      <td>{tx.reference}</td>
-                      <td>{statusLabel(tx.type)}</td>
-                      <td>{formatMoney(tx.amount)}</td>
-                      <td>
-                        <Badge tone={tx.status === 'completed' ? 'success' : 'neutral'}>
-                          {statusLabel(tx.status)}
-                        </Badge>
-                      </td>
                       <td>{formatDate(tx.createdAt)}</td>
+                      <td className="mono-break">{tx.reference}</td>
+                      <td>
+                        <TypeBadge type={tx.type} />
+                      </td>
                       <td>{tx.description || '—'}</td>
+                      <td className={amountSignClass(tx.type)}>
+                        {formatMoney(tx.amount, currency)}
+                      </td>
+                      <td>
+                        <StatusBadge status={tx.status} />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setSelected(tx)}
+                        >
+                          Details
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -120,50 +165,50 @@ export function TransactionsPage() {
 
             <div className="mobile-list">
               {filtered.map((tx) => (
-                <div className="mobile-row" key={tx.id}>
+                <button
+                  key={tx.id}
+                  type="button"
+                  className="mobile-row list-row-btn"
+                  onClick={() => setSelected(tx)}
+                >
                   <div className="mobile-row-top">
-                    <strong>{formatMoney(tx.amount)}</strong>
-                    <Badge tone={tx.status === 'completed' ? 'success' : 'neutral'}>
-                      {statusLabel(tx.status)}
-                    </Badge>
+                    <strong className={amountSignClass(tx.type)}>
+                      {formatMoney(tx.amount, currency)}
+                    </strong>
+                    <StatusBadge status={tx.status} />
                   </div>
                   <div className="mobile-meta">
-                    <span>{tx.reference}</span>
+                    <span className="mono-break">{tx.reference}</span>
                     <span>
-                      {statusLabel(tx.type)} · {formatDate(tx.createdAt)}
+                      <TypeBadge type={tx.type} /> · {formatDate(tx.createdAt)}
                     </span>
                     {tx.description ? <span>{tx.description}</span> : null}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
-            <div className="pagination">
-              <p className="muted">
-                Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
-              </p>
-              <div className="row">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canPrev || query.loading}
-                  onClick={() => setOffset((v) => Math.max(0, v - PAGE_SIZE))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!canNext || query.loading}
-                  onClick={() => setOffset((v) => v + PAGE_SIZE)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <PaginationBar
+              offset={offset}
+              pageSize={PAGE_SIZE}
+              total={total}
+              loading={query.loading}
+              onPrev={() => setOffset((v) => Math.max(0, v - PAGE_SIZE))}
+              onNext={() => setOffset((v) => v + PAGE_SIZE)}
+            />
+            <p className="field-hint">
+              Status, type, and date filters apply to the current page of results returned by the API.
+            </p>
           </>
         ) : null}
       </div>
+
+      <TransactionDetailModal
+        transactionId={selected?.id ?? null}
+        currency={currency}
+        initial={selected}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }

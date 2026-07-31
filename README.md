@@ -1,92 +1,163 @@
-# Fictional Bank App Backend
+# Northline — Fictional Bank App
 
-Backend for a small fictional financial application (about 100 users per instance). It uses TypeScript, Node.js, Supabase Auth, and PostgreSQL.
+Backend + frontend for a small fictional financial application (about 100 users per instance). Stack: TypeScript, Node.js, Supabase Auth/PostgreSQL, Vite + React.
 
 This application does **not** process real money and does **not** connect to real banks or payment processors.
 
-## Scope of this step
+## Run locally
 
-Implemented:
-
-- Supabase Auth sign-in / sign-out / session lookup / password-reset initiation
-- Application roles (`admin`, `user`) enforced server-side and in the database
-- Profiles linked to `auth.users`
-- Application accounts with unique fictional account numbers and constrained account types
-- Admin user provisioning with compensating Auth cleanup
-- Controlled initial-admin bootstrap (no public self-promotion endpoint)
-- Authorization helpers (`requireAuthenticatedUser`, `requireAdmin`, `requireActiveAccount`)
-- Row Level Security plus privilege-protection triggers
-- Fictional wallets with non-negative balances
-- Ledger `transactions` table with unique references
-- Admin-only atomic wallet funding with idempotency
-- Server-side transfer engine (escrow / one-time / four-stage)
-- Fictional verification codes (hashed, expiring, attempt-limited)
-- HTTP API layer (Node `http`, no extra framework) for future frontend consumption
-- Standardized API request/response/error contracts
-- Automated unit/security/API/workflow tests and optional Supabase integration tests
-
-Not implemented yet:
-
-- Detailed transfer / verification UI (Phase 2)
-- Real OTP delivery (SMS/email)
-- Real financial integrations
-- Bank / payment-processor connections
-
-## Frontend (UI Phase 1)
-
-The React app lives in `web/` (Vite + TypeScript). Brand: **Northline**.
+### 1. Install dependencies
 
 ```bash
-# Terminal 1 — API
-npm run dev
+npm install
+npm --prefix web install
+```
 
-# Terminal 2 — UI
-cp web/.env.example web/.env   # set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+### 2. Configure Supabase
+
+Create a Supabase project. Copy the project URL, anon key, and service-role key from the dashboard.
+
+### 3. Apply migrations
+
+```bash
+# With Supabase CLI linked to your project
+npm run db:push
+# or: supabase db push
+```
+
+Migration order (applied automatically by timestamp):
+
+1. `20260730000000_initial_schema.sql`
+2. `20260730170000_auth_profiles_accounts.sql`
+3. `20260731090000_wallets_transactions_ledger.sql`
+4. `20260731120000_transfer_engine.sql`
+
+### 4. Configure server environment
+
+```bash
+cp .env.example .env
+```
+
+Set at least:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only)
+- `PORT` (default `3000`)
+- `VERIFICATION_CODE_PEPPER` (recommended)
+- `INITIAL_ADMIN_*` for first admin bootstrap
+- `CORS_ORIGIN` — leave empty when using the Vite proxy; set to your frontend origin(s) for production cross-origin API access
+
+Never put the service-role key in `web/.env`.
+
+### 5. Configure frontend environment
+
+```bash
+cp web/.env.example web/.env
+```
+
+Set only client-safe values:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_API_BASE_URL` — leave empty for local Vite proxy to `http://localhost:3000`
+
+### 6. Create initial admin
+
+```bash
+npm run setup:initial-admin
+```
+
+### 7. Start API
+
+```bash
+npm run dev
+```
+
+### 8. Start frontend
+
+```bash
 npm run dev:web
 ```
 
-Open http://localhost:5173 — Vite proxies `/api` and `/health` to the API on port 3000.
+Open http://localhost:5173 — Vite proxies `/api` and `/health` to the API.
+
+### 9. Run tests
 
 ```bash
+npm test
 npm run test:web
+```
+
+Optional live Supabase integration (requires a real project + admin credentials):
+
+```bash
+# PowerShell
+$env:RUN_SUPABASE_INTEGRATION="1"
+$env:INTEGRATION_ADMIN_EMAIL="admin@example.com"
+$env:INTEGRATION_ADMIN_PASSWORD="your-dev-admin-password"
+npm test
+```
+
+### 10. Build production artifacts
+
+```bash
+npm run build
 npm run build:web
 ```
 
-See `web/README.md` and `docs/API.md` (Frontend Integration Contract).
+API start (compiled): `npm start`  
+Frontend output: `web/dist` (static hosting)
+
+## Production architecture
+
+```text
+Browser
+  └─ Vite/React static build (web/dist)
+       ├─ Supabase Auth (anon key only)
+       └─ HTTPS API (Authorization: Bearer <access_token>)
+            └─ Node HTTP API server (this repo)
+                 ├─ Supabase Auth validation (anon + user JWT)
+                 └─ Supabase Postgres (service role only on server)
+```
+
+- Frontend may only embed `VITE_SUPABASE_*` anon/public values and `VITE_API_BASE_URL`.
+- `SUPABASE_SERVICE_ROLE_KEY`, bootstrap passwords, and verification pepper stay on the API host.
+- Set `CORS_ORIGIN` to the exact static-site origin(s). Do not use `*`.
+- Local development can omit `CORS_ORIGIN` and use the Vite proxy.
+
+## Scope
+
+Implemented:
+
+- Supabase Auth, roles, profiles, accounts (three types), wallets, ledger
+- Admin funding, transfer engine, four-stage verification, idempotency, RLS
+- Thin Node HTTP API + frozen contract in `docs/API.md`
+- Northline React app (user + admin + transfer/verification UI)
+- Automated backend and frontend tests
+
+Not in scope:
+
+- Real OTP SMS/email delivery
+- Real bank / payment integrations
+- White-label / multi-tenant / domain hosting
+- Production cloud deployment (document only in this phase)
 
 ## Tech stack
 
-- Node.js + TypeScript
+- Node.js + TypeScript (API)
 - Supabase (Auth + PostgreSQL + RLS)
 - Pino logging
+- Vite + React 19 + TypeScript (UI in `web/`)
 
 ## Project structure
 
 ```text
-src/
-  api/                    # HTTP boundary: contracts, handlers, router, server
-  config/                 # Env + Supabase clients (anon vs service role)
-  middleware/
-    auth/                 # Token → application user resolution
-    authorization/        # requireAuthenticatedUser / requireAdmin / requireActiveAccount
-  repositories/
-    profiles/
-    accounts/
-    wallets/
-    transactions/
-    transfers/
-  services/
-    auth/
-    users/                # Profile + provisioning
-    accounts/
-    wallets/
-    transactions/         # Funding + ledger reads
-    transfers/            # Transfer engine + verification
-  scripts/                # Controlled setup commands
-  utils/
-supabase/
-  migrations/
-tests/
+src/                      # API server
+web/                      # Northline frontend
+docs/API.md               # Frozen API contract
+supabase/migrations/      # Database migrations
+tests/                    # Backend tests
 ```
 
 ## Environment variables
@@ -97,7 +168,7 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
-### Client-safe
+### Client-safe (also mirrored for Vite as `VITE_*`)
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
@@ -105,14 +176,16 @@ cp .env.example .env
 ### Server-only (never expose to browsers)
 
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `INITIAL_ADMIN_*`
+- `VERIFICATION_CODE_PEPPER`
+- `ALLOW_VERIFICATION_CODE_PEEK` (dev only; blocked when `NODE_ENV=production`)
 
 ### Application
 
 - `LOG_LEVEL`
 - `NODE_ENV`
 - `PORT` (API server, default `3000`)
-- `VERIFICATION_CODE_PEPPER` (server-only hash pepper)
-- `ALLOW_VERIFICATION_CODE_PEEK` (must be exactly `true` for admin/dev peek; default off)
+- `CORS_ORIGIN` (comma-separated frontend origins for cross-origin API access)
 
 ### Initial admin bootstrap (server-only)
 
@@ -445,6 +518,21 @@ npm test
 
 Integration tests exercise Auth sign-in, admin provisioning, duplicate rejection, and RLS denial of protected mutations. They do not disable RLS to pass.
 
+## Security checklist
+
+- [x] RLS enabled on profiles, accounts, wallets, transactions, transfers, verification tables
+- [x] Service role server-only (never in Vite env / frontend bundle)
+- [x] Admin authorization enforced server-side
+- [x] User ownership enforced server-side (IDOR covered by service + RLS tests)
+- [x] No client balance / ledger / transfer-state mutation paths
+- [x] Verification hashes not returned on user APIs
+- [x] Verification plaintext not exposed in normal UI; peek requires admin + flag + non-production
+- [x] Safe API error envelope (no SQL/stack in responses)
+- [x] CORS origin allow-list via `CORS_ORIGIN` (never `*`)
+- [x] Authenticated routes protected in API + frontend route guards
+- [x] Idempotency on transfers and funding
+- [x] Concurrent one-time transfer protection (DB CAS) covered by tests
+
 ## Security reminders
 
 - Keep `SUPABASE_SERVICE_ROLE_KEY` server-only; it is never returned by API responses.
@@ -453,3 +541,4 @@ Integration tests exercise Auth sign-in, admin provisioning, duplicate rejection
 - Suspended users must be blocked by authorization helpers before protected actions.
 - Verification-code peek is blocked in production even if the peek flag is set.
 - Fresh databases: apply migrations in order with `npm run db:push` / `supabase db push`.
+- After building the frontend, scan `web/dist` for accidental service-role or bootstrap secrets before deploy.

@@ -23,7 +23,9 @@ React + TypeScript frontend for the fictional bank API.
 - Role/account truth: `GET /api/session` and other backend routes
 - HTTP: `src/api/client.ts` + `src/api/endpoints.ts` (exact paths from `docs/API.md`)
 - Shells: user (`/app/*`) and admin (`/admin/*`)
+- Transfer workflow: form → review → processing → verification/outcomes (backend-authoritative)
+- Detail modals: transactions and transfers via existing get-by-id APIs
 
 ## Out of scope (later)
 
-Admin polish beyond Phase 1 shells. Real OTP delivery remains backend/ops concern.
+Deployment, domains, white-label, and real banking integrations.

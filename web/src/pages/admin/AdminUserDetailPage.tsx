@@ -1,23 +1,34 @@
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { getFriendlyErrorMessage } from '../../api/errors';
-import { Alert, Badge, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { Alert, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
+import { StatusBadge, TypeBadge } from '../../components/ui/StatusBadges';
+import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { useToast } from '../../components/ui/Toast';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
   accountTypeLabel,
+  amountSignClass,
   formatAccountNumber,
   formatDate,
   formatMoney,
   fullName,
-  statusLabel,
 } from '../../utils/format';
+import { useMemo, useState } from 'react';
+import type { Transaction } from '../../types/api';
 
 export function AdminUserDetailPage() {
   const { userId = '' } = useParams();
   const { pushToast } = useToast();
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const detail = useAsyncData(() => api.adminGetUser(userId), [userId]);
+  const ledger = useAsyncData(() => api.adminListTransactions({ limit: 50, offset: 0 }), []);
+
+  const accountTransactions = useMemo(() => {
+    if (!detail.data || !ledger.data) return [];
+    return ledger.data.items.filter((tx) => tx.accountId === detail.data!.account.id).slice(0, 8);
+  }, [detail.data, ledger.data]);
 
   async function toggleStatus() {
     if (!detail.data) return;
@@ -62,6 +73,12 @@ export function AdminUserDetailPage() {
           <Link className="btn btn-secondary" to="/admin/users">
             Back
           </Link>
+          <Link className="btn btn-secondary" to="/admin/transactions">
+            Transactions
+          </Link>
+          <Link className="btn btn-secondary" to="/admin/transfers">
+            Transfers
+          </Link>
           <Link className="btn btn-primary" to={`/admin/funding?accountId=${account.id}`}>
             Fund wallet
           </Link>
@@ -73,6 +90,14 @@ export function AdminUserDetailPage() {
           <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Profile</h2>
           <dl className="definition-list">
             <div>
+              <dt>Name</dt>
+              <dd>{fullName(profile.firstName, profile.lastName)}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{profile.email}</dd>
+            </div>
+            <div>
               <dt>Username</dt>
               <dd>{profile.username}</dd>
             </div>
@@ -81,8 +106,10 @@ export function AdminUserDetailPage() {
               <dd>{profile.phone || '—'}</dd>
             </div>
             <div>
-              <dt>Role</dt>
-              <dd>{statusLabel(profile.role)}</dd>
+              <dt>Profile status</dt>
+              <dd>
+                <StatusBadge status={profile.status} />
+              </dd>
             </div>
             <div>
               <dt>Created</dt>
@@ -93,10 +120,8 @@ export function AdminUserDetailPage() {
 
         <div className="card card-pad">
           <div className="card-header">
-            <h2 style={{ fontSize: '1.1rem' }}>Account</h2>
-            <Badge tone={account.accountStatus === 'active' ? 'success' : 'warning'}>
-              {statusLabel(account.accountStatus)}
-            </Badge>
+            <h2 style={{ fontSize: '1.1rem' }}>Account & wallet</h2>
+            <StatusBadge status={account.accountStatus} />
           </div>
           <dl className="definition-list">
             <div>
@@ -104,12 +129,20 @@ export function AdminUserDetailPage() {
               <dd>{formatAccountNumber(account.accountNumber)}</dd>
             </div>
             <div>
-              <dt>Type</dt>
+              <dt>Account type</dt>
               <dd>{accountTypeLabel(account.accountType)}</dd>
             </div>
             <div>
-              <dt>Balance</dt>
-              <dd>{formatMoney(account.balance, account.currency)}</dd>
+              <dt>Account status</dt>
+              <dd>
+                <StatusBadge status={account.accountStatus} />
+              </dd>
+            </div>
+            <div>
+              <dt>Current balance</dt>
+              <dd className="balance-display" style={{ fontSize: '1.6rem' }}>
+                {formatMoney(account.balance, account.currency)}
+              </dd>
             </div>
           </dl>
           <div style={{ marginTop: '1.25rem' }}>
@@ -120,10 +153,69 @@ export function AdminUserDetailPage() {
         </div>
       </div>
 
+      <div className="card card-pad">
+        <div className="card-header">
+          <div>
+            <h2 style={{ fontSize: '1.1rem' }}>Recent account activity</h2>
+            <p className="muted">
+              Matching transactions from the latest admin ledger page for this account
+            </p>
+          </div>
+        </div>
+        {ledger.loading && !ledger.data ? <Skeleton height={100} /> : null}
+        {ledger.error ? (
+          <ErrorState description={ledger.error} onRetry={() => void ledger.reload()} />
+        ) : null}
+        {!ledger.loading && accountTransactions.length === 0 ? (
+          <EmptyState
+            title="No matching transactions on this page"
+            description="Open the full transactions list to browse the ledger."
+            action={
+              <Link className="btn btn-secondary btn-sm" to="/admin/transactions">
+                Browse transactions
+              </Link>
+            }
+          />
+        ) : null}
+        {accountTransactions.length > 0 ? (
+          <div className="stack-sm">
+            {accountTransactions.map((tx) => (
+              <button
+                key={tx.id}
+                type="button"
+                className="list-row-btn"
+                onClick={() => setSelectedTx(tx)}
+              >
+                <div className="mobile-row-top">
+                  <span className={amountSignClass(tx.type)}>
+                    {formatMoney(tx.amount, account.currency)}
+                  </span>
+                  <StatusBadge status={tx.status} />
+                </div>
+                <div className="mobile-meta">
+                  <span className="row" style={{ gap: '0.35rem' }}>
+                    <TypeBadge type={tx.type} />
+                    <span>{formatDate(tx.createdAt)}</span>
+                  </span>
+                  <span className="mono-break">{tx.reference}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
       <Alert tone="info">
-        Balance shown is returned by the API for this account. Funding refreshes from the funding
-        endpoint response.
+        Per-user transfer lists are not exposed on admin transfer list items (no account/user id in
+        the transfer response). Use Transfers for operational inspection.
       </Alert>
+
+      <TransactionDetailModal
+        transactionId={selectedTx?.id ?? null}
+        currency={account.currency}
+        initial={selectedTx}
+        onClose={() => setSelectedTx(null)}
+      />
     </div>
   );
 }

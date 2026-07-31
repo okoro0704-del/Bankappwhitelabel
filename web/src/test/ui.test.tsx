@@ -46,6 +46,8 @@ vi.mock('../api/endpoints', () => ({
     getWallet: vi.fn(),
     getAccount: vi.fn(),
     getTransactions: vi.fn(),
+    getTransfers: vi.fn(),
+    getTransaction: vi.fn(),
     getProfile: vi.fn(),
     adminListUsers: vi.fn(),
     adminFundWallet: vi.fn(),
@@ -158,6 +160,7 @@ describe('dashboard states', () => {
     vi.mocked(api.getWallet).mockReset();
     vi.mocked(api.getAccount).mockReset();
     vi.mocked(api.getTransactions).mockReset();
+    vi.mocked(api.getTransfers).mockReset();
   });
 
   it('renders loading then balance from API', async () => {
@@ -183,6 +186,12 @@ describe('dashboard states', () => {
       offset: 0,
       total: 0,
     });
+    vi.mocked(api.getTransfers).mockResolvedValue({
+      items: [],
+      limit: 5,
+      offset: 0,
+      total: 0,
+    });
 
     renderWithProviders(<UserDashboardPage />);
 
@@ -196,6 +205,7 @@ describe('dashboard states', () => {
     vi.mocked(api.getWallet).mockRejectedValue(new Error('boom'));
     vi.mocked(api.getAccount).mockRejectedValue(new Error('boom'));
     vi.mocked(api.getTransactions).mockRejectedValue(new Error('boom'));
+    vi.mocked(api.getTransfers).mockRejectedValue(new Error('boom'));
 
     renderWithProviders(<UserDashboardPage />);
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument();
@@ -221,6 +231,19 @@ describe('account rendering', () => {
       currency: 'USD',
       updatedAt: new Date().toISOString(),
     });
+    vi.mocked(api.getProfile).mockResolvedValue({
+      id: 'p1',
+      userId: 'u1',
+      firstName: 'Casey',
+      lastName: 'User',
+      email: 'user@example.com',
+      phone: null,
+      username: 'casey',
+      status: 'active',
+      role: 'user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     renderWithProviders(<AccountPage />);
     expect(await screen.findByText(/one-time transfer/i)).toBeInTheDocument();
@@ -230,6 +253,13 @@ describe('account rendering', () => {
 
 describe('transaction rendering', () => {
   it('renders transaction rows', async () => {
+    vi.mocked(api.getWallet).mockResolvedValue({
+      id: 'w1',
+      accountId: 'a1',
+      balance: 40,
+      currency: 'USD',
+      updatedAt: new Date().toISOString(),
+    });
     vi.mocked(api.getTransactions).mockResolvedValue({
       items: [
         {

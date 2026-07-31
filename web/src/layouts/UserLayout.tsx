@@ -4,11 +4,11 @@ import { useAuth } from '../auth/AuthProvider';
 import { fullName } from '../utils/format';
 
 const USER_NAV = [
-  { to: '/app', label: 'Dashboard', end: true },
-  { to: '/app/transfer', label: 'Transfer', end: false },
-  { to: '/app/transactions', label: 'Transactions', end: false },
-  { to: '/app/account', label: 'Account', end: false },
-  { to: '/app/profile', label: 'Profile', end: false },
+  { to: '/app', label: 'Dashboard', icon: '⌂', end: true },
+  { to: '/app/transfer', label: 'Transfer', icon: '↗', end: false },
+  { to: '/app/transactions', label: 'Transactions', icon: '☰', end: false },
+  { to: '/app/account', label: 'Account', icon: '▭', end: false },
+  { to: '/app/profile', label: 'Profile', icon: '◎', end: false },
 ];
 
 export function UserLayout() {
@@ -54,6 +54,9 @@ export function UserLayout() {
                   end={item.end}
                   className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 >
+                  <span className="nav-icon" aria-hidden>
+                    {item.icon}
+                  </span>
                   {item.label}
                 </NavLink>
               </li>
@@ -122,6 +125,9 @@ export function UserLayout() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 onClick={() => setMobileOpen(false)}
               >
+                <span className="nav-icon" aria-hidden>
+                  {item.icon}
+                </span>
                 {item.label}
               </NavLink>
             ))}
