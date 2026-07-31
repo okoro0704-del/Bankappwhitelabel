@@ -14,34 +14,40 @@ import {
   ConflictError,
   NotFoundError,
 } from '../src/utils/errors';
+import { NORTHLINE_TENANT_ID } from '../src/tenants/constants';
 
 const admin: AuthenticatedAppUser = {
   userId: 'admin-user',
   role: 'admin',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const userA: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const userB: AuthenticatedAppUser = {
   userId: 'user-b',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const suspended: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'suspended',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const profileA: ProfileRecord = {
   id: 'profile-a',
   userId: 'user-a',
+  tenantId: NORTHLINE_TENANT_ID,
   firstName: 'Ada',
   lastName: 'Lovelace',
   email: 'ada@example.com',
@@ -65,6 +71,7 @@ const profileB: ProfileRecord = {
 const accountA: AccountRecord = {
   id: 'account-a',
   profileId: 'profile-a',
+  tenantId: NORTHLINE_TENANT_ID,
   accountNumber: '1234567890',
   accountType: 'escrow',
   accountStatus: 'active',

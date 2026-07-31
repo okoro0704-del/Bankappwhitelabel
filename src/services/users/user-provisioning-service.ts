@@ -3,6 +3,7 @@ import { profileRepository } from '../../repositories/profiles/profile-repositor
 import { authService } from '../auth/auth-service';
 import { walletService } from '../wallets/wallet-service';
 import { transactionService } from '../transactions/transaction-service';
+import { NORTHLINE_TENANT_ID } from '../../tenants/constants';
 import type {
   AccountRecord,
   AccountType,
@@ -27,6 +28,7 @@ import {
   validateUsername,
 } from '../../utils/validation';
 import { requireAdmin } from '../../middleware/authorization/authorization-service';
+import { requireActorTenantId } from '../../middleware/authorization/tenant-access';
 
 export interface ProvisionedUserResult {
   profile: ProfileRecord;
@@ -63,6 +65,7 @@ export class UserProvisioningService {
     role: UserRole = 'user',
   ): Promise<ProvisionedUserResult> {
     requireAdmin(actor);
+    requireActorTenantId(actor);
     return this.provisionInternal(input, role, actor);
   }
 
@@ -135,8 +138,12 @@ export class UserProvisioningService {
     );
 
     try {
+      const tenantId =
+        fundingActor?.tenantId ?? NORTHLINE_TENANT_ID;
+
       const profile = await profileRepository.createProfile({
         userId: authUser.id,
+        tenantId,
         firstName,
         lastName,
         email,
@@ -148,6 +155,7 @@ export class UserProvisioningService {
 
       const account = await accountRepository.createAccount({
         profileId: profile.id,
+        tenantId,
         accountType,
         accountNumber,
         accountStatus: 'active',
@@ -162,6 +170,7 @@ export class UserProvisioningService {
           userId: authUser.id,
           role: 'admin',
           accountStatus: 'active',
+          tenantId,
         };
 
         const funded = await transactionService.fundWallet(actorForFunding, {

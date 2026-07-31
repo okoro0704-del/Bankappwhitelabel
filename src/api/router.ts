@@ -76,6 +76,18 @@ const routes: Route[] = [
   route('GET', '/api/admin/transfers', (input) => apiHandlers.adminListTransfers(input)),
   route('GET', '/api/admin/transfers/:id', (input) => apiHandlers.adminGetTransfer(input)),
 
+  route('GET', '/api/tenant/config', (input) => apiHandlers.getTenantConfig(input)),
+  route('GET', '/api/master/tenants', (input) => apiHandlers.masterListTenants(input)),
+  route('POST', '/api/master/tenants', (input) => apiHandlers.masterCreateTenant(input)),
+  route('GET', '/api/master/tenants/:id', (input) => apiHandlers.masterGetTenant(input)),
+  route('PATCH', '/api/master/tenants/:id', (input) => apiHandlers.masterUpdateTenant(input)),
+  route('POST', '/api/master/tenants/:id/activate', (input) =>
+    apiHandlers.masterActivateTenant(input),
+  ),
+  route('POST', '/api/master/tenants/:id/deactivate', (input) =>
+    apiHandlers.masterDeactivateTenant(input),
+  ),
+
   // Isolated from normal user APIs — development/test only
   route('GET', '/api/dev/transfers/:id/verification-code', (input) =>
     apiHandlers.devPeekVerificationCode(input),
@@ -96,6 +108,7 @@ export const dispatchApiRequest = async (input: {
   authorization?: string | null;
   body?: unknown;
   query?: Record<string, string | undefined>;
+  headers?: Record<string, string | undefined>;
 }): Promise<ApiResult<unknown | ApiErrorBody>> => {
   const method = input.method.toUpperCase();
 
@@ -132,6 +145,7 @@ export const dispatchApiRequest = async (input: {
       body: input.body,
       query: input.query,
       params,
+      headers: input.headers,
     });
   }
 
@@ -155,6 +169,7 @@ export const dispatchFromUrl = async (input: {
   url: string;
   authorization?: string | null;
   body?: unknown;
+  headers?: Record<string, string | undefined>;
 }): Promise<ApiResult<unknown | ApiErrorBody>> => {
   const parsed = new URL(input.url, 'http://localhost');
   return dispatchApiRequest({
@@ -163,6 +178,7 @@ export const dispatchFromUrl = async (input: {
     authorization: input.authorization,
     body: input.body,
     query: parseQuery(parsed),
+    headers: input.headers,
   });
 };
 

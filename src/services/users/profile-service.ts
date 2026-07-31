@@ -14,9 +14,14 @@ import {
 } from '../../utils/validation';
 import {
   requireActiveAccount,
-  requireAdmin,
   requireAuthenticatedUser,
 } from '../../middleware/authorization/authorization-service';
+import {
+  assertSameTenant,
+  assertTenantResourceAccess,
+  requireActorTenantId,
+  requireTenantAdmin,
+} from '../../middleware/authorization/tenant-access';
 
 const toPublicProfile = (profile: ProfileRecord): ProfileRecord => profile;
 
@@ -30,6 +35,7 @@ export class ProfileService {
       throw new NotFoundError('Profile not found');
     }
 
+    assertSameTenant(actor, profile.tenantId);
     return toPublicProfile(profile);
   }
 
@@ -45,9 +51,10 @@ export class ProfileService {
       throw new NotFoundError('Profile not found');
     }
 
-    if (actor.role !== 'admin' && profile.userId !== actor.userId) {
-      throw new AuthorizationError('You cannot access another user profile');
-    }
+    assertTenantResourceAccess(actor, {
+      tenantId: profile.tenantId,
+      ownerUserId: profile.userId,
+    });
 
     return toPublicProfile(profile);
   }
@@ -68,6 +75,7 @@ export class ProfileService {
       throw new NotFoundError('Profile not found');
     }
 
+    assertSameTenant(actor, profile.tenantId);
     return toPublicProfile(profile);
   }
 
@@ -86,6 +94,8 @@ export class ProfileService {
     if (!profile) {
       throw new NotFoundError('Profile not found');
     }
+
+    assertSameTenant(actor, profile.tenantId);
 
     const updates: UpdateProfileInput = {};
 
@@ -121,13 +131,15 @@ export class ProfileService {
     profileId: string,
     status: string,
   ): Promise<ProfileRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
 
     const profile = await profileRepository.findById(profileId);
 
     if (!profile) {
       throw new NotFoundError('Profile not found');
     }
+
+    assertSameTenant(actor, profile.tenantId);
 
     const nextStatus = validateAccountStatus(status);
     const updated = await profileRepository.updateProfile(profile.id, {
@@ -136,6 +148,7 @@ export class ProfileService {
 
     const account = await accountRepository.findByProfileId(profile.id);
     if (account) {
+      assertSameTenant(actor, account.tenantId);
       await accountRepository.updateAccountStatus(account.id, {
         accountStatus: nextStatus,
       });
@@ -149,8 +162,9 @@ export class ProfileService {
     search?: string,
     pagination?: { limit: number; offset: number },
   ): Promise<{ items: ProfileRecord[]; total: number }> {
-    requireAdmin(actor);
-    const result = await profileRepository.listProfiles(search, pagination);
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
+    const result = await profileRepository.listProfiles(tenantId, search, pagination);
     return {
       items: result.items.map(toPublicProfile),
       total: result.total,
@@ -161,7 +175,7 @@ export class ProfileService {
     actor: AuthenticatedAppUser,
     email: string,
   ): Promise<ProfileRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
 
     const profile = await profileRepository.findByEmail(email.toLowerCase().trim());
 
@@ -169,6 +183,7 @@ export class ProfileService {
       throw new NotFoundError('Profile not found');
     }
 
+    assertSameTenant(actor, profile.tenantId);
     return toPublicProfile(profile);
   }
 }

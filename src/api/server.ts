@@ -81,6 +81,17 @@ export const createApiServer = () => {
         url,
         authorization,
         body,
+        headers: {
+          host: typeof req.headers.host === 'string' ? req.headers.host : undefined,
+          'x-forwarded-host':
+            typeof req.headers['x-forwarded-host'] === 'string'
+              ? req.headers['x-forwarded-host']
+              : undefined,
+          'x-tenant-slug':
+            typeof req.headers['x-tenant-slug'] === 'string'
+              ? req.headers['x-tenant-slug']
+              : undefined,
+        },
       });
 
       writeJson(res, result.statusCode, result.body, corsHeaders);

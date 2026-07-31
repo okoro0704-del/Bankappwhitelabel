@@ -31,6 +31,8 @@ Migration order (applied automatically by timestamp):
 2. `20260730170000_auth_profiles_accounts.sql`
 3. `20260731090000_wallets_transactions_ledger.sql`
 4. `20260731120000_transfer_engine.sql`
+5. `20260731180000_tenant_architecture.sql` — tenants, branding, master admins, profile.tenant_id
+6. `20260731190000_tenant_isolation.sql` — tenant_id on financial tables, tenant-scoped RLS
 
 ### 4. Configure server environment
 
@@ -135,13 +137,17 @@ Implemented:
 - Thin Node HTTP API + frozen contract in `docs/API.md`
 - Northline React app (user + admin + transfer/verification UI)
 - Automated backend and frontend tests
+- **White-label Phase 1–2:** tenants, branding, Master Admin, TenantResolver, Master API, public tenant config, financial tenant isolation (see `docs/TENANT_ARCHITECTURE.md`)
+- **White-label Phase 3:** Master Admin Dashboard UI at `/master/*` (tenant create/manage/branding)
+- **White-label Phase 4:** runtime tenant branding — one customer build applies `/api/tenant/config` (name, logo, colors, login copy, favicon, document title)
 
-Not in scope:
+Not in scope (yet):
 
 - Real OTP SMS/email delivery
 - Real bank / payment integrations
-- White-label / multi-tenant / domain hosting
-- Production cloud deployment (document only in this phase)
+- DNS / Netlify / deployment automation for per-tenant hosts
+- Owner invitation / email provisioning for tenant owners
+- Production cloud deployment (document only)
 
 ## Tech stack
 
@@ -186,6 +192,8 @@ cp .env.example .env
 - `NODE_ENV`
 - `PORT` (API server, default `3000`)
 - `CORS_ORIGIN` (comma-separated frontend origins for cross-origin API access)
+- `TENANT_DEV_DEFAULT_SLUG` (optional; default `northline` for local tenant resolution)
+- `ALLOW_DEV_TENANT_HEADER` (dev only; must be `true` to honor `X-Tenant-Slug`; blocked conceptually in production by resolver)
 
 ### Initial admin bootstrap (server-only)
 
@@ -216,6 +224,9 @@ Migration order:
 2. `20260730170000_auth_profiles_accounts.sql` — profiles, accounts, RLS, privilege triggers, account-number helper
 3. `20260731090000_wallets_transactions_ledger.sql` — wallets, transactions, atomic funding, ledger RLS
 4. `20260731120000_transfer_engine.sql` — transfers, verification codes, atomic debit, one-time guard
+5. `20260731180000_tenant_architecture.sql` — tenants, branding, master_admins, profiles.tenant_id, Northline seed
+
+White-label architecture details: **[docs/TENANT_ARCHITECTURE.md](docs/TENANT_ARCHITECTURE.md)**
 
 ## Authentication architecture
 
@@ -232,14 +243,22 @@ Migration order:
 
 ## Role architecture
 
-Exactly two roles:
+Tenant-level roles (unchanged):
 
 | Role | Capabilities |
 |------|----------------|
 | `user` | Read/update own permitted profile fields; read own account, wallet, and transactions |
-| `admin` | Provision users, list/search profiles and accounts, update statuses, fund wallets |
+| `admin` | Provision users, list/search profiles and accounts, update statuses, fund wallets **within the tenant application** |
 
-Role is stored on `profiles.role` and resolved from the database after Auth succeeds. Client-supplied role values are never trusted for authorization.
+Platform-level privilege (Phase 1):
+
+| Privilege | Storage | Capabilities |
+|-----------|---------|--------------|
+| Master Admin | `master_admins.user_id` | Manage tenants/branding via `/api/master/*` |
+
+Master Admin is **not** an `app_role` value. Tenant Admin does not imply Master Admin. Tenant ownership (`tenants.owner_user_id`) does not imply Master Admin.
+
+Role / master membership is resolved from the database after Auth succeeds. Client-supplied role values are never trusted for authorization.
 
 Users cannot change their own role. Ordinary users cannot promote themselves. Protected column changes are blocked by RLS policies and database triggers unless the caller is the service role.
 
@@ -451,6 +470,18 @@ Identity, role, account type, and balance are never trusted from the request bod
 | GET | `/api/admin/transactions` | List transactions |
 | GET | `/api/admin/transfers` | List transfers |
 | GET | `/api/admin/transfers/:id` | Transfer detail |
+
+### Master / tenant endpoints (Phase 1)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/tenant/config` | Public branding for server-resolved tenant |
+| GET | `/api/master/tenants` | List tenants (Master Admin) |
+| POST | `/api/master/tenants` | Create tenant (Master Admin) |
+| GET | `/api/master/tenants/:id` | Tenant detail (Master Admin) |
+| PATCH | `/api/master/tenants/:id` | Update tenant/branding (Master Admin) |
+| POST | `/api/master/tenants/:id/activate` | Activate (Master Admin) |
+| POST | `/api/master/tenants/:id/deactivate` | Deactivate (Master Admin) |
 
 ### Development-only verification peek
 

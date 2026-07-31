@@ -15,28 +15,33 @@ import type {
   WalletRecord,
 } from '../src/types';
 import { AuthorizationError, NotFoundError, ValidationError } from '../src/utils/errors';
+import { NORTHLINE_TENANT_ID } from '../src/tenants/constants';
 
 const admin: AuthenticatedAppUser = {
   userId: 'admin-1',
   role: 'admin',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const userA: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const userB: AuthenticatedAppUser = {
   userId: 'user-b',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const profileA: ProfileRecord = {
   id: 'profile-a',
   userId: 'user-a',
+  tenantId: NORTHLINE_TENANT_ID,
   firstName: 'Ada',
   lastName: 'Lovelace',
   email: 'ada@example.com',
@@ -51,6 +56,7 @@ const profileA: ProfileRecord = {
 const accountA: AccountRecord = {
   id: 'account-a',
   profileId: 'profile-a',
+  tenantId: NORTHLINE_TENANT_ID,
   accountNumber: '1234567890',
   accountType: 'escrow',
   accountStatus: 'active',
@@ -62,6 +68,7 @@ const accountA: AccountRecord = {
 const walletA: WalletRecord = {
   id: 'wallet-a',
   accountId: 'account-a',
+  tenantId: NORTHLINE_TENANT_ID,
   balance: 0,
   currency: 'USD',
   createdAt: new Date().toISOString(),
@@ -72,6 +79,7 @@ const fundingTx: TransactionRecord = {
   id: 'tx-1',
   walletId: 'wallet-a',
   accountId: 'account-a',
+  tenantId: NORTHLINE_TENANT_ID,
   transactionType: 'funding',
   status: 'completed',
   amount: 100,

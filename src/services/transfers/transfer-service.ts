@@ -56,6 +56,7 @@ export class TransferService {
     }
 
     const { account, wallet } = await this.resolveSenderContext(actor);
+    const tenantId = account.tenantId ?? actor.tenantId ?? null;
 
     if (account.accountStatus !== 'active') {
       throw new TransferError('ACCOUNT_INACTIVE', 'Account is not active', 403);
@@ -92,6 +93,7 @@ export class TransferService {
         accountId: account.id,
         userId: actor.userId,
         walletId: wallet.id,
+        tenantId,
         reference,
         idempotencyKey,
         recipientName,
@@ -126,6 +128,7 @@ export class TransferService {
           accountId: account.id,
           userId: actor.userId,
           walletId: wallet.id,
+          tenantId,
           reference,
           idempotencyKey,
           recipientName,
@@ -152,6 +155,7 @@ export class TransferService {
         accountId: account.id,
         userId: actor.userId,
         walletId: wallet.id,
+        tenantId,
         reference,
         idempotencyKey,
         recipientName,
@@ -197,6 +201,7 @@ export class TransferService {
       accountId: account.id,
       userId: actor.userId,
       walletId: wallet.id,
+      tenantId,
       reference,
       idempotencyKey,
       recipientName,
@@ -308,7 +313,23 @@ export class TransferService {
       throw new NotFoundError('Transfer not found');
     }
 
-    if (actor.role !== 'admin' && transfer.userId !== actor.userId) {
+    // Cross-tenant access must not reveal existence.
+    if (
+      actor.tenantId &&
+      transfer.tenantId &&
+      transfer.tenantId !== actor.tenantId
+    ) {
+      throw new NotFoundError('Transfer not found');
+    }
+
+    if (actor.role === 'admin') {
+      if (!actor.tenantId) {
+        throw new NotFoundError('Transfer not found');
+      }
+      return transfer;
+    }
+
+    if (transfer.userId !== actor.userId) {
       throw new AuthorizationError('You cannot access another user transfer');
     }
 

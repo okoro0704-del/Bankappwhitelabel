@@ -96,7 +96,8 @@ Error envelope:
 
 - Auth: required
 - Response data: `SessionUserResponse`
-  - `userId`, `role`, `accountStatus`, `email`, `username`, `firstName`, `lastName`
+  - `userId`, `role`, `accountStatus`, `email`, `username`, `firstName`, `lastName`, `isMasterAdmin`
+  - `isMasterAdmin` is derived server-side from `master_admins` membership (never trusted from the client)
 
 ### `GET /api/me/profile`
 
@@ -211,7 +212,9 @@ Does **not** return verification hashes or plaintext codes.
 
 ## Admin API
 
-All require authenticated **admin** role (resolved server-side).
+All require authenticated **admin** role (resolved server-side) **and** membership in the actor’s tenant (`profiles.tenant_id`).
+
+Tenant Admins may only access resources whose `tenant_id` matches their own. Cross-tenant IDs fail safely as `NOT_FOUND`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -256,6 +259,70 @@ All require authenticated **admin** role (resolved server-side).
 ```
 
 Provide `walletId` or `accountId`.
+
+---
+
+## Master Admin API (white-label Phase 1)
+
+Platform-level tenant management. Requires **Master Admin** (`master_admins` membership resolved server-side). Distinct from tenant `/api/admin/*`.
+
+Master Admin is **not** granted by `profiles.role = admin`. Tenant owners are not Master Admins by default.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/master/tenants?limit=&offset=` | List tenants |
+| POST | `/api/master/tenants` | Create tenant + branding |
+| GET | `/api/master/tenants/:id` | Tenant detail + branding |
+| PATCH | `/api/master/tenants/:id` | Update name/subdomain/owner/branding |
+| POST | `/api/master/tenants/:id/activate` | Set status `active` |
+| POST | `/api/master/tenants/:id/deactivate` | Set status `inactive` |
+
+### Create tenant body
+
+```json
+{
+  "name": "Brand A",
+  "slug": "brand-a",
+  "subdomain": "brand-a",
+  "ownerUserId": "optional-auth-user-uuid",
+  "branding": {
+    "applicationName": "Brand A Bank",
+    "logoUrl": null,
+    "faviconUrl": null,
+    "primaryColor": "#112233",
+    "secondaryColor": "#445566",
+    "accentColor": "#778899",
+    "loginHeadline": "Welcome",
+    "loginSubtitle": "Sign in",
+    "supportEmail": "support@brand-a.example",
+    "supportPhone": null
+  }
+}
+```
+
+`subdomain` defaults to `slug` when omitted.
+
+### Master tenant detail response
+
+```text
+tenant: { id, name, slug, status, subdomain, ownerUserId, createdAt, updatedAt }
+branding: { applicationName, logoUrl, faviconUrl, primaryColor, secondaryColor,
+            accentColor, loginHeadline, loginSubtitle, supportEmail, supportPhone }
+```
+
+Never includes service-role keys, passwords, verification hashes, or other secrets.
+
+---
+
+## Public tenant configuration
+
+### `GET /api/tenant/config`
+
+- Auth: none
+- Tenant is resolved **server-side** from Host / controlled development overrides (see `docs/TENANT_ARCHITECTURE.md`)
+- Clients must not send authoritative `tenantId` bodies for this purpose
+- Response data: `TenantConfigurationResponse` (public branding only)
+- Inactive / unknown tenants → `404`
 
 ---
 

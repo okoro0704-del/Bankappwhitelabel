@@ -12,6 +12,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../../utils/error
 const PROFILE_COLUMNS = `
   id,
   user_id,
+  tenant_id,
   first_name,
   last_name,
   email,
@@ -26,6 +27,7 @@ const PROFILE_COLUMNS = `
 const mapProfile = (row: Record<string, unknown>): ProfileRecord => ({
   id: String(row.id),
   userId: String(row.user_id),
+  tenantId: row.tenant_id == null ? null : String(row.tenant_id),
   firstName: String(row.first_name),
   lastName: String(row.last_name),
   email: String(row.email),
@@ -69,6 +71,7 @@ export class ProfileRepository {
       .from('profiles')
       .insert({
         user_id: input.userId,
+        tenant_id: input.tenantId ?? undefined,
         first_name: input.firstName,
         last_name: input.lastName,
         email: input.email,
@@ -263,6 +266,7 @@ export class ProfileRepository {
   }
 
   async listProfiles(
+    tenantId: string,
     search?: string,
     pagination?: { limit: number; offset: number },
   ): Promise<{ items: ProfileRecord[]; total: number }> {
@@ -271,11 +275,13 @@ export class ProfileRepository {
 
     let countQuery = this.client()
       .from('profiles')
-      .select('id', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
 
     let query = this.client()
       .from('profiles')
       .select(PROFILE_COLUMNS)
+      .eq('tenant_id', tenantId)
       .order('created_at')
       .range(offset, offset + limit - 1);
 

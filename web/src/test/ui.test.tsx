@@ -51,11 +51,14 @@ vi.mock('../api/endpoints', () => ({
     getProfile: vi.fn(),
     adminListUsers: vi.fn(),
     adminFundWallet: vi.fn(),
+    getTenantConfig: vi.fn(),
   },
 }));
 
 import { api } from '../api/endpoints';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { TenantProvider } from '../tenant/TenantProvider';
+import { DEFAULT_NORTHLINE_CONFIGURATION } from '../types/tenant';
 
 function renderWithProviders(ui: ReactNode, path = '/') {
   return render(
@@ -145,11 +148,16 @@ describe('protected routes', () => {
 });
 
 describe('login state', () => {
-  it('shows sign-in form', () => {
+  it('shows sign-in form', async () => {
     authState.session = null;
     authState.appUser = null;
-    renderWithProviders(<LoginPage />);
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
+    vi.mocked(api.getTenantConfig).mockResolvedValue(DEFAULT_NORTHLINE_CONFIGURATION);
+    renderWithProviders(
+      <TenantProvider>
+        <LoginPage />
+      </TenantProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
   });

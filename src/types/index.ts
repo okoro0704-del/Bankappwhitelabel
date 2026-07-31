@@ -43,11 +43,16 @@ export interface AuthenticatedAppUser {
   userId: string;
   role: UserRole;
   accountStatus?: AccountStatus;
+  /** Tenant membership from profiles.tenant_id (server-resolved). */
+  tenantId?: string | null;
+  /** Platform privilege from master_admins (never from client claims). */
+  isMasterAdmin?: boolean;
 }
 
 export interface ProfileRecord {
   id: string;
   userId: string;
+  tenantId?: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -59,9 +64,91 @@ export interface ProfileRecord {
   updatedAt: string;
 }
 
+export const TENANT_STATUSES = ['active', 'inactive'] as const;
+
+export type TenantStatus = (typeof TENANT_STATUSES)[number];
+
+export interface TenantBranding {
+  applicationName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  loginHeadline: string | null;
+  loginSubtitle: string | null;
+  supportEmail: string | null;
+  supportPhone: string | null;
+}
+
+export interface TenantRecord {
+  id: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  ownerUserId: string | null;
+  subdomain: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantBrandingRecord extends TenantBranding {
+  tenantId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantWithBranding {
+  tenant: TenantRecord;
+  branding: TenantBrandingRecord;
+}
+
+/** Public branding/config returned to frontends — never includes secrets. */
+export interface TenantConfiguration {
+  tenantId: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  subdomain: string;
+  branding: TenantBranding;
+}
+
+/** Master-dashboard summary (Master Admin only). */
+export interface MasterTenantSummary {
+  id: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  subdomain: string;
+  ownerUserId: string | null;
+  applicationName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTenantInput {
+  name: string;
+  slug: string;
+  subdomain?: string;
+  ownerUserId?: string | null;
+  branding?: Partial<TenantBranding>;
+}
+
+export interface UpdateTenantInput {
+  name?: string;
+  subdomain?: string;
+  ownerUserId?: string | null;
+  branding?: Partial<TenantBranding>;
+}
+
+export const isTenantStatus = (value: string): value is TenantStatus => {
+  return TENANT_STATUSES.includes(value as TenantStatus);
+};
+
 export interface AccountRecord {
   id: string;
   profileId: string;
+  tenantId?: string | null;
   accountNumber: string;
   accountType: AccountType;
   accountStatus: AccountStatus;
@@ -72,6 +159,7 @@ export interface AccountRecord {
 
 export interface CreateProfileInput {
   userId: string;
+  tenantId?: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -91,6 +179,7 @@ export interface UpdateProfileInput {
 
 export interface CreateAccountInput {
   profileId: string;
+  tenantId?: string | null;
   accountType: AccountType;
   accountNumber?: string;
   accountStatus?: AccountStatus;
@@ -115,6 +204,7 @@ export interface ProvisionUserInput {
 export interface WalletRecord {
   id: string;
   accountId: string;
+  tenantId?: string | null;
   balance: number;
   currency: string;
   createdAt: string;
@@ -125,6 +215,7 @@ export interface TransactionRecord {
   id: string;
   walletId: string;
   accountId: string;
+  tenantId?: string | null;
   transactionType: TransactionType;
   status: TransactionStatus;
   amount: number;
@@ -141,6 +232,7 @@ export interface TransactionRecord {
 
 export interface CreateWalletInput {
   accountId: string;
+  tenantId?: string | null;
   balance?: number;
   currency?: string;
 }
@@ -209,6 +301,7 @@ export interface TransferRecord {
   accountId: string;
   userId: string;
   walletId: string;
+  tenantId?: string | null;
   ledgerTransactionId: string | null;
   reference: string;
   idempotencyKey: string;

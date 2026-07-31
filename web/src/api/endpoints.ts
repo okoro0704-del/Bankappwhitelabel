@@ -15,6 +15,13 @@ import type {
   VerificationStageResponse,
   Wallet,
 } from '../types/api';
+import type {
+  CreateTenantRequest,
+  MasterTenantDetail,
+  MasterTenantSummary,
+  TenantConfiguration,
+  UpdateTenantRequest,
+} from '../types/tenant';
 
 export interface ListParams {
   limit?: number;
@@ -114,4 +121,38 @@ export const api = {
 
   adminGetTransfer: (id: string) =>
     apiRequest<Transfer>(`/api/admin/transfers/${id}`),
+
+  /** Public tenant branding for the server-resolved tenant (no auth). */
+  getTenantConfig: () =>
+    apiRequest<TenantConfiguration>('/api/tenant/config', { auth: false }),
+
+  // --- Master Admin (platform) ---
+
+  masterListTenants: (params?: ListParams) =>
+    apiRequest<Paginated<MasterTenantSummary>>(`/api/master/tenants${toQuery(params)}`),
+
+  masterGetTenant: (tenantId: string) =>
+    apiRequest<MasterTenantDetail>(`/api/master/tenants/${tenantId}`),
+
+  masterCreateTenant: (body: CreateTenantRequest) =>
+    apiRequest<MasterTenantDetail>('/api/master/tenants', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  masterUpdateTenant: (tenantId: string, body: UpdateTenantRequest) =>
+    apiRequest<MasterTenantDetail>(`/api/master/tenants/${tenantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  masterActivateTenant: (tenantId: string) =>
+    apiRequest<MasterTenantDetail>(`/api/master/tenants/${tenantId}/activate`, {
+      method: 'POST',
+    }),
+
+  masterDeactivateTenant: (tenantId: string) =>
+    apiRequest<MasterTenantDetail>(`/api/master/tenants/${tenantId}/deactivate`, {
+      method: 'POST',
+    }),
 };

@@ -15,6 +15,7 @@ const TRANSFER_COLUMNS = `
   account_id,
   user_id,
   wallet_id,
+  tenant_id,
   ledger_transaction_id,
   reference,
   idempotency_key,
@@ -46,6 +47,7 @@ export const mapTransfer = (row: Record<string, unknown>): TransferRecord => ({
   accountId: String(row.account_id),
   userId: String(row.user_id),
   walletId: String(row.wallet_id),
+  tenantId: row.tenant_id == null ? null : String(row.tenant_id),
   ledgerTransactionId:
     row.ledger_transaction_id == null ? null : String(row.ledger_transaction_id),
   reference: String(row.reference),
@@ -69,6 +71,7 @@ export interface CreateTransferRowInput {
   accountId: string;
   userId: string;
   walletId: string;
+  tenantId?: string | null;
   reference: string;
   idempotencyKey: string;
   recipientName: string;
@@ -104,6 +107,7 @@ export class TransferRepository {
         account_id: input.accountId,
         user_id: input.userId,
         wallet_id: input.walletId,
+        tenant_id: input.tenantId ?? undefined,
         reference: input.reference,
         idempotency_key: input.idempotencyKey,
         recipient_name: input.recipientName,
@@ -132,12 +136,17 @@ export class TransferRepository {
     return mapTransfer(data);
   }
 
-  async findById(id: string): Promise<TransferRecord | null> {
-    const { data, error } = await this.client()
+  async findById(id: string, tenantId?: string): Promise<TransferRecord | null> {
+    let query = this.client()
       .from('transfers')
       .select(TRANSFER_COLUMNS)
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new ValidationError(error.message);
@@ -213,16 +222,21 @@ export class TransferRepository {
   }
 
   async listAll(
+    tenantId: string,
     pagination?: { limit: number; offset: number },
   ): Promise<{ items: TransferRecord[]; total: number }> {
     const limit = pagination?.limit ?? 20;
     const offset = pagination?.offset ?? 0;
 
     const [{ count, error: countError }, { data, error }] = await Promise.all([
-      this.client().from('transfers').select('id', { count: 'exact', head: true }),
+      this.client()
+        .from('transfers')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId),
       this.client()
         .from('transfers')
         .select(TRANSFER_COLUMNS)
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1),
     ]);

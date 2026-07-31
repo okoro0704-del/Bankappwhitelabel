@@ -33,34 +33,40 @@ import {
   validateRecipientAccount,
   validateTransferAmount,
 } from '../src/utils/validation';
+import { NORTHLINE_TENANT_ID } from '../src/tenants/constants';
 
 const activeUser: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const suspendedUser: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'suspended',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const otherUser: AuthenticatedAppUser = {
   userId: 'user-b',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const admin: AuthenticatedAppUser = {
   userId: 'admin-1',
   role: 'admin',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const profileA: ProfileRecord = {
   id: 'profile-a',
   userId: 'user-a',
+  tenantId: NORTHLINE_TENANT_ID,
   firstName: 'Ada',
   lastName: 'Lovelace',
   email: 'ada@example.com',
@@ -75,6 +81,7 @@ const profileA: ProfileRecord = {
 const baseAccount = (type: AccountRecord['accountType']): AccountRecord => ({
   id: 'account-a',
   profileId: 'profile-a',
+  tenantId: NORTHLINE_TENANT_ID,
   accountNumber: '1234567890',
   accountType: type,
   accountStatus: 'active',
@@ -86,6 +93,7 @@ const baseAccount = (type: AccountRecord['accountType']): AccountRecord => ({
 const walletA: WalletRecord = {
   id: 'wallet-a',
   accountId: 'account-a',
+  tenantId: NORTHLINE_TENANT_ID,
   balance: 500,
   currency: 'USD',
   createdAt: new Date().toISOString(),
@@ -108,6 +116,7 @@ const makeTransfer = (
   accountId: 'account-a',
   userId: 'user-a',
   walletId: 'wallet-a',
+  tenantId: NORTHLINE_TENANT_ID,
   ledgerTransactionId: null,
   reference: 'TRF-REFERENCE01',
   idempotencyKey: transferInput.idempotencyKey,
@@ -681,7 +690,9 @@ test('admin peek of verification codes is gated', async () => {
   const previousPeek = verificationCodeRepository.peekPlaintext.bind(
     verificationCodeRepository,
   );
+  const previousFind = transferRepository.findById.bind(transferRepository);
   verificationCodeRepository.peekPlaintext = async () => '654321';
+  transferRepository.findById = async () => makeTransfer();
   const previousNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'development';
   process.env.ALLOW_VERIFICATION_CODE_PEEK = 'true';
@@ -704,6 +715,7 @@ test('admin peek of verification codes is gated', async () => {
     );
   } finally {
     verificationCodeRepository.peekPlaintext = previousPeek;
+    transferRepository.findById = previousFind;
     process.env.NODE_ENV = previousNodeEnv;
   }
 });

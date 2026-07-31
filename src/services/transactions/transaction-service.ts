@@ -7,18 +7,21 @@ import type {
   FundWalletResult,
   TransactionRecord,
 } from '../../types';
-import { AuthorizationError, NotFoundError, ValidationError } from '../../utils/errors';
+import { NotFoundError, ValidationError } from '../../utils/errors';
 import { generateTransactionReference } from '../../utils/transaction-reference';
 import {
   validateFundingAmount,
   validateIdempotencyKey,
   validateTransactionReference,
 } from '../../utils/validation';
-import {
-  requireAdmin,
-  requireAuthenticatedUser,
-} from '../../middleware/authorization/authorization-service';
+import { requireAuthenticatedUser } from '../../middleware/authorization/authorization-service';
 import { profileRepository } from '../../repositories/profiles/profile-repository';
+import {
+  assertSameTenant,
+  assertTenantResourceAccess,
+  requireActorTenantId,
+  requireTenantAdmin,
+} from '../../middleware/authorization/tenant-access';
 
 export class TransactionService {
   /**
@@ -30,7 +33,7 @@ export class TransactionService {
     actor: AuthenticatedAppUser,
     input: FundWalletInput,
   ): Promise<FundWalletResult> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
 
     const amount = validateFundingAmount(input.amount);
     const reference = validateTransactionReference(
@@ -39,6 +42,7 @@ export class TransactionService {
     const idempotencyKey = validateIdempotencyKey(input.idempotencyKey);
 
     const wallet = await this.resolveWallet(input);
+    assertSameTenant(actor, wallet.tenantId);
 
     const result = await transactionRepository.fundWalletAtomic({
       walletId: wallet.id,
@@ -86,7 +90,8 @@ export class TransactionService {
       throw new NotFoundError('Wallet not found');
     }
 
-    await this.assertCanAccessAccount(actor, wallet.accountId);
+    assertSameTenant(actor, wallet.tenantId);
+    await this.assertCanAccessAccount(actor, wallet.accountId, wallet.tenantId);
     return transactionRepository.listByWalletId(walletId);
   }
 
@@ -104,8 +109,9 @@ export class TransactionService {
     actor: AuthenticatedAppUser,
     pagination?: { limit: number; offset: number },
   ): Promise<{ items: TransactionRecord[]; total: number }> {
-    requireAdmin(actor);
-    return transactionRepository.listAll(pagination);
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
+    return transactionRepository.listAll(tenantId, pagination);
   }
 
   private async resolveWallet(input: FundWalletInput) {
@@ -132,26 +138,39 @@ export class TransactionService {
     actor: AuthenticatedAppUser,
     transaction: TransactionRecord,
   ): Promise<void> {
-    await this.assertCanAccessAccount(actor, transaction.accountId);
+    await this.assertCanAccessAccount(
+      actor,
+      transaction.accountId,
+      transaction.tenantId,
+    );
   }
 
   private async assertCanAccessAccount(
     actor: AuthenticatedAppUser,
     accountId: string,
+    knownTenantId?: string | null,
   ): Promise<void> {
-    if (actor.role === 'admin') {
-      return;
-    }
-
     const account = await accountRepository.findById(accountId);
     if (!account) {
       throw new NotFoundError('Account not found');
     }
 
-    const profile = await profileRepository.findById(account.profileId);
-    if (!profile || profile.userId !== actor.userId) {
-      throw new AuthorizationError('You cannot access another user transactions');
+    const tenantId = knownTenantId ?? account.tenantId;
+
+    if (actor.role === 'admin') {
+      assertSameTenant(actor, tenantId);
+      return;
     }
+
+    const profile = await profileRepository.findById(account.profileId);
+    if (!profile) {
+      throw new NotFoundError('Account not found');
+    }
+
+    assertTenantResourceAccess(actor, {
+      tenantId: tenantId ?? profile.tenantId,
+      ownerUserId: profile.userId,
+    });
   }
 }
 

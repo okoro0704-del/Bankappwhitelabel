@@ -30,6 +30,26 @@ export const requireAdmin = (
   return authenticatedUser;
 };
 
+/**
+ * Master Admin is platform-level (master_admins table), not profiles.role.
+ * Tenant admins and owners do not automatically receive this privilege.
+ */
+export const requireMasterAdmin = (
+  user: AuthenticatedAppUser | null | undefined,
+): AuthenticatedAppUser => {
+  const authenticatedUser = requireAuthenticatedUser(user);
+
+  if (!authenticatedUser.isMasterAdmin) {
+    throw new AuthorizationError('Master administrator access is required');
+  }
+
+  if (authenticatedUser.accountStatus === 'suspended') {
+    throw new AuthorizationError('Suspended accounts cannot perform master actions');
+  }
+
+  return authenticatedUser;
+};
+
 export const requireActiveAccount = (
   user: AuthenticatedAppUser | null | undefined,
 ): AuthenticatedAppUser => {

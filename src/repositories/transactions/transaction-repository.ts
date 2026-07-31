@@ -13,6 +13,7 @@ const TRANSACTION_COLUMNS = `
   id,
   wallet_id,
   account_id,
+  tenant_id,
   transaction_type,
   status,
   amount,
@@ -39,6 +40,7 @@ export const mapTransaction = (row: Record<string, unknown>): TransactionRecord 
   id: String(row.id),
   walletId: String(row.wallet_id),
   accountId: String(row.account_id),
+  tenantId: row.tenant_id == null ? null : String(row.tenant_id),
   transactionType: row.transaction_type as TransactionRecord['transactionType'],
   status: row.status as TransactionRecord['status'],
   amount: toNumber(row.amount),
@@ -81,12 +83,17 @@ export class TransactionRepository {
     return this.adminClient;
   }
 
-  async findById(id: string): Promise<TransactionRecord | null> {
-    const { data, error } = await this.client()
+  async findById(id: string, tenantId?: string): Promise<TransactionRecord | null> {
+    let query = this.client()
       .from('transactions')
       .select(TRANSACTION_COLUMNS)
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new ValidationError(error.message);
@@ -171,16 +178,21 @@ export class TransactionRepository {
   }
 
   async listAll(
+    tenantId: string,
     pagination?: { limit: number; offset: number },
   ): Promise<{ items: TransactionRecord[]; total: number }> {
     const limit = pagination?.limit ?? 20;
     const offset = pagination?.offset ?? 0;
 
     const [{ count, error: countError }, { data, error }] = await Promise.all([
-      this.client().from('transactions').select('id', { count: 'exact', head: true }),
+      this.client()
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId),
       this.client()
         .from('transactions')
         .select(TRANSACTION_COLUMNS)
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1),
     ]);
@@ -256,7 +268,7 @@ export class TransactionRepository {
 
     const { data: walletRow, error: walletError } = await this.client()
       .from('wallets')
-      .select('id, account_id, balance, currency, created_at, updated_at')
+      .select('id, account_id, tenant_id, balance, currency, created_at, updated_at')
       .eq('id', transaction.walletId)
       .single();
 

@@ -21,16 +21,19 @@ import type {
 import { hashVerificationCode } from '../src/utils/verification-code';
 import { TransferError } from '../src/utils/errors';
 import * as authContext from '../src/api/auth-context';
+import { NORTHLINE_TENANT_ID } from '../src/tenants/constants';
 
 const user: AuthenticatedAppUser = {
   userId: 'user-a',
   role: 'user',
   accountStatus: 'active',
+  tenantId: NORTHLINE_TENANT_ID,
 };
 
 const profile: ProfileRecord = {
   id: 'profile-a',
   userId: 'user-a',
+  tenantId: NORTHLINE_TENANT_ID,
   firstName: 'Ada',
   lastName: 'Lovelace',
   email: 'ada@example.com',
@@ -45,6 +48,7 @@ const profile: ProfileRecord = {
 const account = (type: AccountRecord['accountType'], used = false): AccountRecord => ({
   id: 'account-a',
   profileId: 'profile-a',
+  tenantId: NORTHLINE_TENANT_ID,
   accountNumber: '1234567890',
   accountType: type,
   accountStatus: 'active',
@@ -56,6 +60,7 @@ const account = (type: AccountRecord['accountType'], used = false): AccountRecor
 const wallet = (balance = 500): WalletRecord => ({
   id: 'wallet-a',
   accountId: 'account-a',
+  tenantId: NORTHLINE_TENANT_ID,
   balance,
   currency: 'USD',
   createdAt: new Date().toISOString(),
@@ -67,6 +72,7 @@ const transferBase = (overrides: Partial<TransferRecord> = {}): TransferRecord =
   accountId: 'account-a',
   userId: 'user-a',
   walletId: 'wallet-a',
+  tenantId: NORTHLINE_TENANT_ID,
   ledgerTransactionId: null,
   reference: 'TRF-REF00001',
   idempotencyKey: 'IDEM-WORKFLOW-0001',
@@ -382,6 +388,7 @@ test('dev verification peek is isolated from normal transfer routes', async () =
     userId: 'admin-1',
     role: 'admin',
     accountStatus: 'active',
+    tenantId: NORTHLINE_TENANT_ID,
   }));
 
   try {

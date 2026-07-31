@@ -5,6 +5,7 @@ import {
   requireActiveAccount,
   requireAdmin,
   requireAuthenticatedUser,
+  requireMasterAdmin,
 } from '../src/middleware/authorization/authorization-service';
 import { assertNotSelfRoleChange } from '../src/middleware/auth/auth-middleware';
 import type { AuthenticatedAppUser } from '../src/types';
@@ -25,6 +26,13 @@ const adminUser: AuthenticatedAppUser = {
   accountStatus: 'active',
 };
 
+const masterAdminUser: AuthenticatedAppUser = {
+  userId: 'master-1',
+  role: 'user',
+  accountStatus: 'active',
+  isMasterAdmin: true,
+};
+
 const suspendedUser: AuthenticatedAppUser = {
   userId: 'user-2',
   role: 'user',
@@ -42,6 +50,12 @@ test('requireAuthenticatedUser rejects missing identity', () => {
 test('requireAdmin recognizes admin and rejects ordinary user', () => {
   assert.equal(requireAdmin(adminUser).role, 'admin');
   assert.throws(() => requireAdmin(activeUser), AuthorizationError);
+});
+
+test('requireMasterAdmin recognizes master and rejects tenant admin', () => {
+  assert.equal(requireMasterAdmin(masterAdminUser).isMasterAdmin, true);
+  assert.throws(() => requireMasterAdmin(adminUser), AuthorizationError);
+  assert.throws(() => requireMasterAdmin(activeUser), AuthorizationError);
 });
 
 test('requireActiveAccount accepts active and rejects suspended', () => {

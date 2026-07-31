@@ -1,29 +1,39 @@
 import { Outlet } from 'react-router-dom';
+import { BrandMark } from '../tenant/BrandMark';
+import { useTenant } from '../tenant/TenantProvider';
 
 export function AuthLayout() {
+  const { branding, config } = useTenant();
+  const applicationName = branding?.applicationName ?? config?.name ?? 'Application';
+  const headline = branding?.loginHeadline ?? `Welcome to ${applicationName}`;
+  const subtitle =
+    branding?.loginSubtitle ?? 'Sign in to manage your account.';
+
   return (
     <div className="auth-layout">
-      <section className="auth-visual" aria-hidden={false}>
+      <section className="auth-visual" aria-label={`${applicationName} branding`}>
         <div className="shell-brand">
-          <div className="shell-brand-mark">N</div>
+          <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} />
           <div>
-            <div className="shell-brand-name">Northline</div>
-            <div className="shell-brand-tag">Fictional banking demo</div>
+            <div className="shell-brand-name">{applicationName}</div>
+            <div className="shell-brand-tag">Secure account access</div>
           </div>
         </div>
         <div className="auth-visual-copy">
-          <p className="badge badge-accent" style={{ width: 'fit-content' }}>
-            Not real money
-          </p>
-          <h1>Clear balances. Controlled transfers.</h1>
-          <p>
-            A premium demo banking experience powered by your existing API — no invented balances
-            or transfer rules in the browser.
-          </p>
+          <h1>{headline}</h1>
+          <p>{subtitle}</p>
         </div>
-        <p className="muted" style={{ color: 'rgba(238,244,243,0.7)', position: 'relative', zIndex: 1 }}>
-          Demo environment · API remains the source of truth
-        </p>
+        {branding?.supportEmail || branding?.supportPhone ? (
+          <p
+            className="muted"
+            style={{ color: 'rgba(238,244,243,0.7)', position: 'relative', zIndex: 1 }}
+          >
+            Support
+            {branding.supportEmail ? `: ${branding.supportEmail}` : ''}
+            {branding.supportEmail && branding.supportPhone ? ' · ' : ''}
+            {branding.supportPhone ?? ''}
+          </p>
+        ) : null}
       </section>
       <section className="auth-panel">
         <Outlet />

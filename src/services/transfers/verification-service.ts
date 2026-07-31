@@ -86,12 +86,15 @@ export class VerificationService {
     requireAdmin(actor);
     this.assertPeekAllowed();
 
-    const code = await verificationCodeRepository.peekPlaintext(transferId, stage);
+    // Tenant admin only — never cross-tenant peek.
+    const transfer = await this.requireOwnedTransfer(actor, transferId);
+
+    const code = await verificationCodeRepository.peekPlaintext(transfer.id, stage);
     if (!code) {
       throw new NotFoundError('Verification code reveal not found');
     }
 
-    return { transferId, stage, code };
+    return { transferId: transfer.id, stage, code };
   }
 
   async getCurrentVerificationStage(
@@ -238,7 +241,22 @@ export class VerificationService {
       throw new NotFoundError('Transfer not found');
     }
 
-    if (actor.role !== 'admin' && transfer.userId !== actor.userId) {
+    if (
+      actor.tenantId &&
+      transfer.tenantId &&
+      transfer.tenantId !== actor.tenantId
+    ) {
+      throw new NotFoundError('Transfer not found');
+    }
+
+    if (actor.role === 'admin') {
+      if (!actor.tenantId) {
+        throw new NotFoundError('Transfer not found');
+      }
+      return transfer;
+    }
+
+    if (transfer.userId !== actor.userId) {
       throw new AuthorizationError('You cannot access another user transfer');
     }
 

@@ -28,6 +28,8 @@ export interface SessionUser {
   username: string;
   firstName: string;
   lastName: string;
+  /** Resolved by the API from master_admins — never set client-side. */
+  isMasterAdmin?: boolean;
 }
 
 export interface Profile {

@@ -47,7 +47,7 @@ export function UserDashboardPage() {
       <div className="page-header">
         <div>
           <h1>Hello{appUser ? `, ${appUser.firstName}` : ''}</h1>
-          <p className="page-subtitle">Your Northline overview</p>
+          <p className="page-subtitle">Your account overview</p>
         </div>
         <Button variant="secondary" size="sm" onClick={refreshAll} disabled={loading}>
           Refresh

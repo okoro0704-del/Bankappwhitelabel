@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { BrandMark } from '../tenant/BrandMark';
+import { useTenant } from '../tenant/TenantProvider';
 import { fullName } from '../utils/format';
 
 const USER_NAV = [
@@ -13,10 +15,13 @@ const USER_NAV = [
 
 export function UserLayout() {
   const { appUser, signOut } = useAuth();
+  const { branding } = useTenant();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const applicationName = branding?.applicationName ?? 'Application';
 
   useEffect(() => {
     const onDoc = (event: MouseEvent) => {
@@ -37,11 +42,9 @@ export function UserLayout() {
     <div className="shell">
       <aside className="shell-sidebar" aria-label="Primary">
         <div className="shell-brand">
-          <div className="shell-brand-mark" aria-hidden>
-            N
-          </div>
+          <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} />
           <div>
-            <div className="shell-brand-name">Northline</div>
+            <div className="shell-brand-name">{applicationName}</div>
             <div className="shell-brand-tag">Personal banking</div>
           </div>
         </div>

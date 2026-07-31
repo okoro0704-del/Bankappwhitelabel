@@ -6,23 +6,28 @@ import type {
   CreateWalletInput,
   WalletRecord,
 } from '../../types';
-import { AuthorizationError, NotFoundError, ValidationError } from '../../utils/errors';
+import { NotFoundError, ValidationError } from '../../utils/errors';
+import { requireAuthenticatedUser } from '../../middleware/authorization/authorization-service';
 import {
-  requireAdmin,
-  requireAuthenticatedUser,
-} from '../../middleware/authorization/authorization-service';
+  assertSameTenant,
+  assertTenantResourceAccess,
+  requireActorTenantId,
+  requireTenantAdmin,
+} from '../../middleware/authorization/tenant-access';
 
 export class WalletService {
   async createWallet(
     actor: AuthenticatedAppUser,
     input: CreateWalletInput,
   ): Promise<WalletRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
 
     const account = await accountRepository.findById(input.accountId);
     if (!account) {
       throw new NotFoundError('Account not found for wallet creation');
     }
+
+    assertSameTenant(actor, account.tenantId);
 
     const existing = await walletRepository.findByAccountId(account.id);
     if (existing) {
@@ -37,6 +42,7 @@ export class WalletService {
 
     return walletRepository.createWallet({
       accountId: account.id,
+      tenantId: account.tenantId,
       balance: 0,
       currency: input.currency ?? 'USD',
     });
@@ -51,8 +57,10 @@ export class WalletService {
       return existing;
     }
 
+    const account = await accountRepository.findById(accountId);
     return walletRepository.createWallet({
       accountId,
+      tenantId: account?.tenantId ?? undefined,
       balance: 0,
       currency: 'USD',
     });
@@ -96,12 +104,14 @@ export class WalletService {
       throw new NotFoundError('Wallet not found');
     }
 
+    assertSameTenant(actor, wallet.tenantId);
     return wallet;
   }
 
   async adminListWallets(actor: AuthenticatedAppUser): Promise<WalletRecord[]> {
-    requireAdmin(actor);
-    return walletRepository.listWallets();
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
+    return walletRepository.listWallets(tenantId);
   }
 
   private async assertCanAccessWallet(
@@ -109,18 +119,24 @@ export class WalletService {
     wallet: WalletRecord,
   ): Promise<void> {
     if (actor.role === 'admin') {
+      assertSameTenant(actor, wallet.tenantId);
       return;
     }
 
     const account = await accountRepository.findById(wallet.accountId);
     if (!account) {
-      throw new NotFoundError('Account not found');
+      throw new NotFoundError('Wallet not found');
     }
 
     const profile = await profileRepository.findById(account.profileId);
-    if (!profile || profile.userId !== actor.userId) {
-      throw new AuthorizationError('You cannot access another user wallet');
+    if (!profile) {
+      throw new NotFoundError('Wallet not found');
     }
+
+    assertTenantResourceAccess(actor, {
+      tenantId: wallet.tenantId ?? account.tenantId ?? profile.tenantId,
+      ownerUserId: profile.userId,
+    });
   }
 }
 

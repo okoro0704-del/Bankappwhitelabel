@@ -1,6 +1,9 @@
 import type {
   AccountRecord,
+  MasterTenantSummary,
   ProfileRecord,
+  TenantConfiguration,
+  TenantWithBranding,
   TransactionRecord,
   TransferRecord,
   TransferServiceResult,
@@ -8,8 +11,11 @@ import type {
 } from '../types';
 import type {
   AccountResponse,
+  MasterTenantDetailResponse,
+  MasterTenantSummaryResponse,
   ProfileResponse,
   SessionUserResponse,
+  TenantConfigurationResponse,
   TransactionResponse,
   TransferActionResponse,
   TransferResponse,
@@ -34,6 +40,7 @@ export const toProfileResponse = (profile: ProfileRecord): ProfileResponse => ({
 export const toSessionUserResponse = (
   profile: ProfileRecord,
   accountStatus: ProfileRecord['status'],
+  isMasterAdmin = false,
 ): SessionUserResponse => ({
   userId: profile.userId,
   role: profile.role,
@@ -42,6 +49,7 @@ export const toSessionUserResponse = (
   username: profile.username,
   firstName: profile.firstName,
   lastName: profile.lastName,
+  isMasterAdmin,
 });
 
 export const toAccountResponse = (
@@ -161,4 +169,46 @@ export const toVerificationStageResponse = (input: {
   stage: input.currentStage,
   stagesCompleted: input.stagesCompleted,
   expiresAt: input.expiresAt,
+});
+
+export const toTenantConfigurationResponse = (
+  config: TenantConfiguration,
+): TenantConfigurationResponse => ({
+  tenantId: config.tenantId,
+  name: config.name,
+  slug: config.slug,
+  status: config.status,
+  subdomain: config.subdomain,
+  branding: { ...config.branding },
+});
+
+export const toMasterTenantSummaryResponse = (
+  summary: MasterTenantSummary,
+): MasterTenantSummaryResponse => ({ ...summary });
+
+export const toMasterTenantDetailResponse = (
+  bundle: TenantWithBranding,
+): MasterTenantDetailResponse => ({
+  tenant: {
+    id: bundle.tenant.id,
+    name: bundle.tenant.name,
+    slug: bundle.tenant.slug,
+    status: bundle.tenant.status,
+    subdomain: bundle.tenant.subdomain,
+    ownerUserId: bundle.tenant.ownerUserId,
+    createdAt: bundle.tenant.createdAt,
+    updatedAt: bundle.tenant.updatedAt,
+  },
+  branding: {
+    applicationName: bundle.branding.applicationName,
+    logoUrl: bundle.branding.logoUrl,
+    faviconUrl: bundle.branding.faviconUrl,
+    primaryColor: bundle.branding.primaryColor,
+    secondaryColor: bundle.branding.secondaryColor,
+    accentColor: bundle.branding.accentColor,
+    loginHeadline: bundle.branding.loginHeadline,
+    loginSubtitle: bundle.branding.loginSubtitle,
+    supportEmail: bundle.branding.supportEmail,
+    supportPhone: bundle.branding.supportPhone,
+  },
 });

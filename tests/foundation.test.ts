@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   ACCOUNT_TYPES,
   APP_ROLES,
+  TENANT_STATUSES,
   isAccountType,
+  isTenantStatus,
   isUserRole,
 } from '../src/types';
 import {
@@ -27,6 +29,12 @@ test('role constants are valid', () => {
   assert.deepEqual(APP_ROLES, ['admin', 'user']);
   assert.equal(isUserRole('admin'), true);
   assert.equal(isUserRole('guest'), false);
+});
+
+test('tenant status constants are valid', () => {
+  assert.deepEqual(TENANT_STATUSES, ['active', 'inactive']);
+  assert.equal(isTenantStatus('active'), true);
+  assert.equal(isTenantStatus('pending'), false);
 });
 
 test('validation error shape is consistent', () => {

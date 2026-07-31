@@ -13,6 +13,7 @@ import { generateAccountNumber } from '../../utils/account-number';
 const ACCOUNT_COLUMNS = `
   id,
   profile_id,
+  tenant_id,
   account_number,
   account_type,
   account_status,
@@ -24,6 +25,7 @@ const ACCOUNT_COLUMNS = `
 const mapAccount = (row: Record<string, unknown>): AccountRecord => ({
   id: String(row.id),
   profileId: String(row.profile_id),
+  tenantId: row.tenant_id == null ? null : String(row.tenant_id),
   accountNumber: String(row.account_number),
   accountType: row.account_type as AccountRecord['accountType'],
   accountStatus: row.account_status as AccountRecord['accountStatus'],
@@ -58,6 +60,7 @@ export class AccountRepository {
         .from('accounts')
         .insert({
           profile_id: input.profileId,
+          tenant_id: input.tenantId ?? undefined,
           account_type: input.accountType,
           account_number: accountNumber,
           account_status: input.accountStatus ?? 'active',
@@ -88,12 +91,39 @@ export class AccountRepository {
     throw new ValidationError(lastError?.message ?? 'Unable to generate a unique account number');
   }
 
-  async findById(id: string): Promise<AccountRecord | null> {
-    const { data, error } = await this.client()
+  async findById(id: string, tenantId?: string): Promise<AccountRecord | null> {
+    let query = this.client()
       .from('accounts')
       .select(ACCOUNT_COLUMNS)
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new ValidationError(error.message);
+    }
+
+    return data ? mapAccount(data) : null;
+  }
+
+  async findByAccountNumber(
+    accountNumber: string,
+    tenantId?: string,
+  ): Promise<AccountRecord | null> {
+    let query = this.client()
+      .from('accounts')
+      .select(ACCOUNT_COLUMNS)
+      .eq('account_number', accountNumber);
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new ValidationError(error.message);
@@ -121,20 +151,6 @@ export class AccountRepository {
       .from('accounts')
       .select(`${ACCOUNT_COLUMNS}, profiles!inner(user_id)`)
       .eq('profiles.user_id', userId)
-      .maybeSingle();
-
-    if (error) {
-      throw new ValidationError(error.message);
-    }
-
-    return data ? mapAccount(data) : null;
-  }
-
-  async findByAccountNumber(accountNumber: string): Promise<AccountRecord | null> {
-    const { data, error } = await this.client()
-      .from('accounts')
-      .select(ACCOUNT_COLUMNS)
-      .eq('account_number', accountNumber)
       .maybeSingle();
 
     if (error) {
@@ -190,8 +206,12 @@ export class AccountRepository {
     return account.accountType;
   }
 
-  async listAccounts(search?: string): Promise<AccountRecord[]> {
-    let query = this.client().from('accounts').select(ACCOUNT_COLUMNS).order('created_at');
+  async listAccounts(tenantId: string, search?: string): Promise<AccountRecord[]> {
+    let query = this.client()
+      .from('accounts')
+      .select(ACCOUNT_COLUMNS)
+      .eq('tenant_id', tenantId)
+      .order('created_at');
 
     if (search && search.trim().length > 0) {
       const term = search.trim();

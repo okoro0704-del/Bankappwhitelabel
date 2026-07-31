@@ -37,6 +37,8 @@ export interface SessionUserResponse {
   username: string;
   firstName: string;
   lastName: string;
+  /** Platform Master Admin — resolved server-side from master_admins. */
+  isMasterAdmin: boolean;
 }
 
 export interface ProfileResponse {
@@ -180,4 +182,67 @@ export interface UpdateProfileApiRequest {
 export interface AdminUserResponse {
   profile: ProfileResponse;
   account: AccountResponse;
+}
+
+export interface TenantBrandingResponse {
+  applicationName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  loginHeadline: string | null;
+  loginSubtitle: string | null;
+  supportEmail: string | null;
+  supportPhone: string | null;
+}
+
+export interface TenantConfigurationResponse {
+  tenantId: string;
+  name: string;
+  slug: string;
+  status: 'active' | 'inactive';
+  subdomain: string;
+  branding: TenantBrandingResponse;
+}
+
+export interface MasterTenantSummaryResponse {
+  id: string;
+  name: string;
+  slug: string;
+  status: 'active' | 'inactive';
+  subdomain: string;
+  ownerUserId: string | null;
+  applicationName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MasterTenantDetailResponse {
+  tenant: {
+    id: string;
+    name: string;
+    slug: string;
+    status: 'active' | 'inactive';
+    subdomain: string;
+    ownerUserId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  branding: TenantBrandingResponse;
+}
+
+export interface CreateTenantApiRequest {
+  name: string;
+  slug: string;
+  subdomain?: string;
+  ownerUserId?: string | null;
+  branding?: Partial<TenantBrandingResponse>;
+}
+
+export interface UpdateTenantApiRequest {
+  name?: string;
+  subdomain?: string;
+  ownerUserId?: string | null;
+  branding?: Partial<TenantBrandingResponse>;
 }

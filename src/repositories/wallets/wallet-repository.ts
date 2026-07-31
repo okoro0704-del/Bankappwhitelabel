@@ -7,6 +7,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../../utils/error
 const WALLET_COLUMNS = `
   id,
   account_id,
+  tenant_id,
   balance,
   currency,
   created_at,
@@ -24,6 +25,7 @@ const toNumber = (value: unknown): number => {
 export const mapWallet = (row: Record<string, unknown>): WalletRecord => ({
   id: String(row.id),
   accountId: String(row.account_id),
+  tenantId: row.tenant_id == null ? null : String(row.tenant_id),
   balance: toNumber(row.balance),
   currency: String(row.currency),
   createdAt: String(row.created_at),
@@ -50,6 +52,7 @@ export class WalletRepository {
       .from('wallets')
       .insert({
         account_id: input.accountId,
+        tenant_id: input.tenantId ?? undefined,
         balance: input.balance ?? 0,
         currency: input.currency ?? 'USD',
       })
@@ -69,12 +72,17 @@ export class WalletRepository {
     return mapWallet(data);
   }
 
-  async findById(id: string): Promise<WalletRecord | null> {
-    const { data, error } = await this.client()
+  async findById(id: string, tenantId?: string): Promise<WalletRecord | null> {
+    let query = this.client()
       .from('wallets')
       .select(WALLET_COLUMNS)
-      .eq('id', id)
-      .maybeSingle();
+      .eq('id', id);
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new ValidationError(error.message);
@@ -137,10 +145,11 @@ export class WalletRepository {
     return wallet;
   }
 
-  async listWallets(): Promise<WalletRecord[]> {
+  async listWallets(tenantId: string): Promise<WalletRecord[]> {
     const { data, error } = await this.client()
       .from('wallets')
       .select(WALLET_COLUMNS)
+      .eq('tenant_id', tenantId)
       .order('created_at');
 
     if (error) {

@@ -12,23 +12,29 @@ import {
   validateAccountStatus,
   validateAccountType,
 } from '../../utils/validation';
+import { requireAuthenticatedUser } from '../../middleware/authorization/authorization-service';
 import {
-  requireAdmin,
-  requireAuthenticatedUser,
-} from '../../middleware/authorization/authorization-service';
+  assertSameTenant,
+  assertTenantResourceAccess,
+  requireActorTenantId,
+  requireTenantAdmin,
+} from '../../middleware/authorization/tenant-access';
 
 export class AccountService {
   async createAccount(
     actor: AuthenticatedAppUser,
     input: CreateAccountInput,
   ): Promise<AccountRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
 
     const profile = await profileRepository.findById(input.profileId);
 
     if (!profile) {
       throw new NotFoundError('Profile not found for account creation');
     }
+
+    assertSameTenant(actor, profile.tenantId);
 
     const existing = await accountRepository.findByProfileId(profile.id);
     if (existing) {
@@ -37,6 +43,7 @@ export class AccountService {
 
     return accountRepository.createAccount({
       profileId: profile.id,
+      tenantId: profile.tenantId ?? tenantId,
       accountType: validateAccountType(input.accountType),
       accountNumber: validateAccountNumber(input.accountNumber),
       accountStatus: input.accountStatus
@@ -78,6 +85,7 @@ export class AccountService {
       throw new NotFoundError('Account not found');
     }
 
+    await this.assertCanAccessAccount(actor, account);
     return account;
   }
 
@@ -90,13 +98,15 @@ export class AccountService {
     accountId: string,
     accountStatus: string,
   ): Promise<AccountRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
 
     const account = await accountRepository.findById(accountId);
 
     if (!account) {
       throw new NotFoundError('Account not found');
     }
+
+    assertSameTenant(actor, account.tenantId);
 
     return accountRepository.updateAccountStatus(account.id, {
       accountStatus: validateAccountStatus(accountStatus),
@@ -115,19 +125,21 @@ export class AccountService {
     actor: AuthenticatedAppUser,
     accountNumber: string,
   ): Promise<AccountRecord> {
-    requireAdmin(actor);
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
 
     const normalized = validateAccountNumber(accountNumber);
     if (!normalized) {
       throw new NotFoundError('Account not found');
     }
 
-    const account = await accountRepository.findByAccountNumber(normalized);
+    const account = await accountRepository.findByAccountNumber(normalized, tenantId);
 
     if (!account) {
       throw new NotFoundError('Account not found');
     }
 
+    assertSameTenant(actor, account.tenantId);
     return account;
   }
 
@@ -135,8 +147,9 @@ export class AccountService {
     actor: AuthenticatedAppUser,
     search?: string,
   ): Promise<AccountRecord[]> {
-    requireAdmin(actor);
-    return accountRepository.listAccounts(search);
+    requireTenantAdmin(actor);
+    const tenantId = requireActorTenantId(actor);
+    return accountRepository.listAccounts(tenantId, search);
   }
 
   private async assertCanAccessAccount(
@@ -144,14 +157,20 @@ export class AccountService {
     account: AccountRecord,
   ): Promise<void> {
     if (actor.role === 'admin') {
+      assertSameTenant(actor, account.tenantId);
       return;
     }
 
     const profile = await profileRepository.findById(account.profileId);
 
-    if (!profile || profile.userId !== actor.userId) {
-      throw new AuthorizationError('You cannot access another user account');
+    if (!profile) {
+      throw new NotFoundError('Account not found');
     }
+
+    assertTenantResourceAccess(actor, {
+      tenantId: account.tenantId ?? profile.tenantId,
+      ownerUserId: profile.userId,
+    });
   }
 }
 

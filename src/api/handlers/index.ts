@@ -5,6 +5,8 @@ import { transactionService } from '../../services/transactions/transaction-serv
 import { transferService } from '../../services/transfers/transfer-service';
 import { verificationService } from '../../services/transfers/verification-service';
 import { userProvisioningService } from '../../services/users/user-provisioning-service';
+import { tenantService } from '../../services/tenants/tenant-service';
+import { tenantResolver } from '../../services/tenants/tenant-resolver';
 import { transferRepository } from '../../repositories/transfers/transfer-repository';
 import { accountRepository } from '../../repositories/accounts/account-repository';
 import { walletRepository } from '../../repositories/wallets/wallet-repository';
@@ -12,18 +14,23 @@ import { profileRepository } from '../../repositories/profiles/profile-repositor
 import { verificationCodeRepository } from '../../repositories/transfers/verification-code-repository';
 import * as authContext from '../auth-context';
 import type {
+  CreateTenantApiRequest,
   CreateTransferApiRequest,
   CreateUserApiRequest,
   FundWalletApiRequest,
   SubmitVerificationApiRequest,
   UpdateProfileApiRequest,
   UpdateStatusApiRequest,
+  UpdateTenantApiRequest,
 } from '../contracts';
 import { created, ok, runApi, type ApiResult } from '../http';
 import {
   toAccountResponse,
+  toMasterTenantDetailResponse,
+  toMasterTenantSummaryResponse,
   toProfileResponse,
   toSessionUserResponse,
+  toTenantConfigurationResponse,
   toTransactionResponse,
   toTransferActionResponse,
   toTransferResponse,
@@ -39,6 +46,7 @@ export type ApiHandlerInput = {
   body?: unknown;
   query?: Record<string, string | undefined>;
   params?: Record<string, string>;
+  headers?: Record<string, string | undefined>;
 };
 
 const asBody = <T>(body: unknown): T => {
@@ -54,7 +62,11 @@ export const apiHandlers = {
       const actor = await authContext.resolveActor(input.authorization);
       const profile = await profileService.getCurrentProfile(actor);
       return ok(
-        toSessionUserResponse(profile, actor.accountStatus ?? profile.status),
+        toSessionUserResponse(
+          profile,
+          actor.accountStatus ?? profile.status,
+          Boolean(actor.isMasterAdmin),
+        ),
       );
     });
   },
@@ -299,10 +311,13 @@ export const apiHandlers = {
     return runApi(async () => {
       const actor = await authContext.resolveActor(input.authorization);
       requireAdmin(actor);
+      if (!actor.tenantId) {
+        throw new ValidationError('Tenant membership is required for this action');
+      }
       const profileId = authContext.requireUuid('profileId', input.params?.id ?? '');
       const body = asBody<UpdateProfileApiRequest>(input.body);
       const existing = await profileRepository.findById(profileId);
-      if (!existing) {
+      if (!existing || existing.tenantId !== actor.tenantId) {
         throw new ValidationError('Profile not found');
       }
       // Admin updates via repository (status changes use dedicated endpoint).
@@ -363,8 +378,11 @@ export const apiHandlers = {
     return runApi(async () => {
       const actor = await authContext.resolveActor(input.authorization);
       requireAdmin(actor);
+      if (!actor.tenantId) {
+        throw new ValidationError('Tenant membership is required for this action');
+      }
       const pagination = authContext.parsePagination(input.query ?? {});
-      const result = await transferRepository.listAll(pagination);
+      const result = await transferRepository.listAll(actor.tenantId, pagination);
       return ok({
         items: result.items.map(toTransferResponse),
         limit: pagination.limit,
@@ -406,6 +424,91 @@ export const apiHandlers = {
         stage,
       );
       return ok(revealed);
+    });
+  },
+
+  // --- Tenant public config + Master Admin ---
+
+  async getTenantConfig(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const resolved = await tenantResolver.resolve({
+        hostname: input.headers?.host,
+        headers: input.headers,
+        query: input.query,
+      });
+      const config = await tenantService.getPublicConfiguration(resolved);
+      return ok(toTenantConfigurationResponse(config));
+    });
+  },
+
+  async masterListTenants(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const pagination = authContext.parsePagination(input.query ?? {});
+      const result = await tenantService.listTenants(actor, pagination);
+      return ok({
+        items: result.items.map(toMasterTenantSummaryResponse),
+        limit: pagination.limit,
+        offset: pagination.offset,
+        total: result.total,
+      });
+    });
+  },
+
+  async masterCreateTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const body = asBody<CreateTenantApiRequest>(input.body);
+      const createdTenant = await tenantService.createTenant(actor, {
+        name: body.name,
+        slug: body.slug,
+        subdomain: body.subdomain,
+        ownerUserId: body.ownerUserId,
+        branding: body.branding,
+      });
+      return created(toMasterTenantDetailResponse(createdTenant));
+    });
+  },
+
+  async masterGetTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const tenant = await tenantService.getTenantForMaster(actor, id);
+      return ok(toMasterTenantDetailResponse(tenant));
+    });
+  },
+
+  async masterUpdateTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const body = asBody<UpdateTenantApiRequest>(input.body);
+      const updated = await tenantService.updateTenant(actor, id, {
+        name: body.name,
+        subdomain: body.subdomain,
+        ownerUserId: body.ownerUserId,
+        branding: body.branding,
+      });
+      return ok(toMasterTenantDetailResponse(updated));
+    });
+  },
+
+  async masterActivateTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const updated = await tenantService.activateTenant(actor, id);
+      return ok(toMasterTenantDetailResponse(updated));
+    });
+  },
+
+  async masterDeactivateTenant(input: ApiHandlerInput) {
+    return runApi(async () => {
+      const actor = await authContext.resolveActor(input.authorization);
+      const id = authContext.requireUuid('tenantId', input.params?.id ?? '');
+      const updated = await tenantService.deactivateTenant(actor, id);
+      return ok(toMasterTenantDetailResponse(updated));
     });
   },
 

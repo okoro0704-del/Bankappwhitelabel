@@ -5,14 +5,18 @@ import { getFriendlyErrorMessage } from '../../api/errors';
 import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
+import { useTenant } from '../../tenant/TenantProvider';
 
 export function LoginPage() {
   const { signIn, error: sessionError } = useAuth();
+  const { branding } = useTenant();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const applicationName = branding?.applicationName ?? 'your account';
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -32,7 +36,9 @@ export function LoginPage() {
     <div className="auth-card">
       <div>
         <h2>Sign in</h2>
-        <p className="page-subtitle">Use your Northline credentials.</p>
+        <p className="page-subtitle">
+          {branding?.loginSubtitle ?? `Sign in to ${applicationName}.`}
+        </p>
       </div>
 
       {(error || sessionError) && (
@@ -69,6 +75,12 @@ export function LoginPage() {
         </Button>
       </form>
 
+      {branding?.supportEmail ? (
+        <p className="muted" style={{ fontSize: '0.85rem' }}>
+          Need help? {branding.supportEmail}
+        </p>
+      ) : null}
+
       <p>
         <Link to="/forgot-password">Forgot password?</Link>
       </p>
@@ -78,6 +90,7 @@ export function LoginPage() {
 
 export function ForgotPasswordPage() {
   const { resetPassword } = useAuth();
+  const { branding } = useTenant();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,9 +123,7 @@ export function ForgotPasswordPage() {
         </Alert>
       ) : (
         <form className="stack" onSubmit={onSubmit}>
-          {error ? (
-            <Alert tone="error">{error}</Alert>
-          ) : null}
+          {error ? <Alert tone="error">{error}</Alert> : null}
           <Field label="Email" htmlFor="reset-email">
             <Input
               id="reset-email"
@@ -127,6 +138,12 @@ export function ForgotPasswordPage() {
           </Button>
         </form>
       )}
+
+      {branding?.supportEmail ? (
+        <p className="muted" style={{ fontSize: '0.85rem' }}>
+          Support: {branding.supportEmail}
+        </p>
+      ) : null}
 
       <p>
         <Link to="/login">Back to sign in</Link>
