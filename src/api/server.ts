@@ -21,7 +21,7 @@ const readJsonBody = async (req: http.IncomingMessage): Promise<unknown> => {
   try {
     return JSON.parse(raw);
   } catch {
-    return { __invalidJson: true, raw };
+    return { __invalidJson: true };
   }
 };
 
@@ -32,9 +32,9 @@ export const createApiServer = () => {
     const authorization = req.headers.authorization ?? null;
 
     try {
-      let body = await readJsonBody(req);
+      const body = await readJsonBody(req);
       if (body && typeof body === 'object' && '__invalidJson' in body) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end(
           JSON.stringify({
             error: { code: 'VALIDATION_ERROR', message: 'Request body must be valid JSON' },
@@ -50,6 +50,12 @@ export const createApiServer = () => {
         body,
       });
 
+      if (result.statusCode === 204) {
+        res.writeHead(204, { 'Cache-Control': 'no-store' });
+        res.end();
+        return;
+      }
+
       res.writeHead(result.statusCode, {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',
@@ -57,7 +63,10 @@ export const createApiServer = () => {
       res.end(JSON.stringify(result.body));
     } catch (error) {
       logger.error({ error }, 'API server failure');
-      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.writeHead(500, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      });
       res.end(
         JSON.stringify({
           error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
@@ -69,8 +78,27 @@ export const createApiServer = () => {
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3000)) => {
   const server = createApiServer();
+
   server.listen(port, () => {
     logger.info({ port }, 'API server listening');
   });
+
+  const shutdown = (signal: string) => {
+    logger.info({ signal }, 'Shutting down API server');
+    server.close((error) => {
+      if (error) {
+        logger.error({ error }, 'Error during API server shutdown');
+        process.exit(1);
+      }
+      process.exit(0);
+    });
+
+    // Force-exit if connections hang.
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+
   return server;
 };

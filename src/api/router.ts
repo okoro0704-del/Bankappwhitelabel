@@ -8,6 +8,7 @@ type Route = {
   method: string;
   pattern: RegExp;
   paramNames: string[];
+  pathTemplate: string;
   handler: (input: ApiHandlerInput) => Promise<ApiResult<unknown>>;
 };
 
@@ -32,6 +33,7 @@ const route = (
     method: method.toUpperCase(),
     pattern: new RegExp(`^${patternSource}$`),
     paramNames,
+    pathTemplate: path,
     handler,
   };
 };
@@ -74,7 +76,7 @@ const routes: Route[] = [
   route('GET', '/api/admin/transfers', (input) => apiHandlers.adminListTransfers(input)),
   route('GET', '/api/admin/transfers/:id', (input) => apiHandlers.adminGetTransfer(input)),
 
-  // Isolated from normal user APIs
+  // Isolated from normal user APIs — development/test only
   route('GET', '/api/dev/transfers/:id/verification-code', (input) =>
     apiHandlers.devPeekVerificationCode(input),
   ),
@@ -97,10 +99,28 @@ export const dispatchApiRequest = async (input: {
 }): Promise<ApiResult<unknown | ApiErrorBody>> => {
   const method = input.method.toUpperCase();
 
+  if (method === 'OPTIONS') {
+    return {
+      statusCode: 204,
+      body: { data: null },
+    };
+  }
+
+  let pathMatched = false;
+  const allowedMethods = new Set<string>();
+
   for (const candidate of routes) {
-    if (candidate.method !== method) continue;
     const match = candidate.pattern.exec(input.path);
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
+
+    pathMatched = true;
+    allowedMethods.add(candidate.method);
+
+    if (candidate.method !== method) {
+      continue;
+    }
 
     const params: Record<string, string> = {};
     candidate.paramNames.forEach((name, index) => {
@@ -113,6 +133,18 @@ export const dispatchApiRequest = async (input: {
       query: input.query,
       params,
     });
+  }
+
+  if (pathMatched) {
+    return {
+      statusCode: 405,
+      body: {
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: `Method ${method} is not allowed for this path`,
+        },
+      },
+    };
   }
 
   return toApiError(new NotFoundError(`Route not found: ${method} ${input.path}`));

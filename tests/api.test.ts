@@ -12,6 +12,18 @@ import {
 } from '../src/utils/errors';
 import type { TransferServiceResult } from '../src/types';
 
+test('unsupported method returns METHOD_NOT_ALLOWED', async () => {
+  const result = await dispatchApiRequest({
+    method: 'POST',
+    path: '/api/session',
+  });
+  assert.equal(result.statusCode, 405);
+  assert.equal(
+    (result.body as { error: { code: string } }).error.code,
+    'METHOD_NOT_ALLOWED',
+  );
+});
+
 test('API error contract maps auth and transfer codes safely', () => {
   const unauth = toApiError(new AuthenticationError());
   assert.equal(unauth.statusCode, 401);
@@ -29,6 +41,21 @@ test('API error contract maps auth and transfer codes safely', () => {
   assert.equal(
     (transfer.body as { error: { code: string } }).error.code,
     'EXTERNAL_TRANSFER_NOT_ALLOWED',
+  );
+
+  const dbLeak = toApiError(
+    new ValidationError('duplicate key value violates unique constraint "x"'),
+  );
+  assert.equal((dbLeak.body as { error: { code: string } }).error.code, 'VALIDATION_ERROR');
+  assert.equal(
+    (dbLeak.body as { error: { message: string } }).error.message,
+    'Request could not be completed',
+  );
+
+  const knownFromDb = toApiError(new ValidationError('INSUFFICIENT_BALANCE'));
+  assert.equal(
+    (knownFromDb.body as { error: { code: string } }).error.code,
+    'INSUFFICIENT_BALANCE',
   );
 
   const internal = toApiError(new Error('secret sql boom'));

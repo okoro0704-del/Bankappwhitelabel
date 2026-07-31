@@ -220,6 +220,10 @@ export class VerificationService {
   }
 
   private assertPeekAllowed(): void {
+    if (process.env.NODE_ENV === 'production') {
+      throw new AuthorizationError('Verification code peek is disabled in production');
+    }
+
     if (process.env.ALLOW_VERIFICATION_CODE_PEEK !== 'true') {
       throw new AuthorizationError('Verification code peek is disabled');
     }

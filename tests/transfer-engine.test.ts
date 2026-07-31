@@ -682,6 +682,8 @@ test('admin peek of verification codes is gated', async () => {
     verificationCodeRepository,
   );
   verificationCodeRepository.peekPlaintext = async () => '654321';
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
   process.env.ALLOW_VERIFICATION_CODE_PEEK = 'true';
   process.env.SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://example.supabase.co';
   process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? 'anon';
@@ -694,7 +696,14 @@ test('admin peek of verification codes is gated', async () => {
       () => service.peekVerificationCodeForTesting(activeUser, 'transfer-1', 1),
       AuthorizationError,
     );
+
+    process.env.NODE_ENV = 'production';
+    await assert.rejects(
+      () => service.peekVerificationCodeForTesting(admin, 'transfer-1', 1),
+      AuthorizationError,
+    );
   } finally {
     verificationCodeRepository.peekPlaintext = previousPeek;
+    process.env.NODE_ENV = previousNodeEnv;
   }
 });

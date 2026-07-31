@@ -27,10 +27,32 @@ Implemented:
 
 Not implemented yet:
 
-- Frontend / dashboards / progress UI
+- Detailed transfer / verification UI (Phase 2)
 - Real OTP delivery (SMS/email)
 - Real financial integrations
 - Bank / payment-processor connections
+
+## Frontend (UI Phase 1)
+
+The React app lives in `web/` (Vite + TypeScript). Brand: **Northline**.
+
+```bash
+# Terminal 1 — API
+npm run dev
+
+# Terminal 2 — UI
+cp web/.env.example web/.env   # set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+npm run dev:web
+```
+
+Open http://localhost:5173 — Vite proxies `/api` and `/health` to the API on port 3000.
+
+```bash
+npm run test:web
+npm run build:web
+```
+
+See `web/README.md` and `docs/API.md` (Frontend Integration Contract).
 
 ## Tech stack
 
@@ -363,31 +385,33 @@ Identity, role, account type, and balance are never trusted from the request bod
 GET /api/dev/transfers/:id/verification-code?stage=1
 ```
 
-Requires admin + `ALLOW_VERIFICATION_CODE_PEEK=true`. Not part of normal user transfer APIs. Never returns hashes on user routes; never returns plaintext codes from production user endpoints.
+Requires **all** of:
 
-### Response shape
+1. Authenticated admin
+2. `ALLOW_VERIFICATION_CODE_PEEK=true`
+3. `NODE_ENV` is not `production`
 
-Success:
+Not part of normal user transfer APIs. Never returns hashes on user routes.
 
-```json
-{ "data": { ... } }
-```
+### Frozen API contract
 
-Error:
+See **[docs/API.md](docs/API.md)** for the frozen request/response contract, including the **Frontend Integration Contract**.
 
-```json
-{ "error": { "code": "INSUFFICIENT_BALANCE", "message": "..." } }
-```
+## Frontend Integration Contract
 
-### Transfer idempotency
+Summary for frontend authors (full detail in `docs/API.md`):
 
-Every `POST /api/transfers` must include `idempotencyKey` (8–128 chars). Replays return the original logical result and never double-debit.
+- **Base URL:** `http://localhost:3000` (or your deployed API origin)
+- **Auth header:** `Authorization: Bearer <supabase_access_token>`
+- **Success:** `{ "data": ... }`
+- **Error:** `{ "error": { "code": "...", "message": "..." } }`
+- **User routes:** `/api/session`, `/api/me/*`, `/api/transfers`, `/api/transactions/:id`
+- **Admin routes:** `/api/admin/*` (server-enforced admin role)
+- **Transfer statuses returned by create/verify:** `completed` | `restricted` | `failed` | `verification_required`
+- **Account types:** `escrow` | `one_time_transfer` | `four_stage_verification`
+- Never trust client-supplied role/accountType/balance; never expect verification hashes in user responses
 
-### Verification API behavior
-
-- User responses include stage/status/expiry only.
-- Submitting the correct stage-4 code marks stages complete; the verification endpoint then completes the transfer so the frontend receives an authoritative `completed` result when eligible.
-- `POST /api/transfers/:id/complete` remains available for explicit completion/resume.
+This application does not connect to real banks or payment networks and does not move real money.
 
 ## Testing
 
@@ -423,7 +447,9 @@ Integration tests exercise Auth sign-in, admin provisioning, duplicate rejection
 
 ## Security reminders
 
-- Keep `SUPABASE_SERVICE_ROLE_KEY` server-only.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` server-only; it is never returned by API responses.
 - Do not put production passwords in source control.
 - Do not add a client-callable “make me admin” route.
 - Suspended users must be blocked by authorization helpers before protected actions.
+- Verification-code peek is blocked in production even if the peek flag is set.
+- Fresh databases: apply migrations in order with `npm run db:push` / `supabase db push`.

@@ -8,6 +8,8 @@ dist/
 .env
 .env.local
 .env.*.local
+web/.env
+web/.env.local
 *.pem
 
 # Logs
@@ -26,6 +28,10 @@ Thumbs.db
 # Coverage / test artifacts
 coverage/
 .nyc_output/
+web/coverage/
+
+# Frontend build
+web/dist/
 
 # Supabase local temp
 supabase/.temp/
