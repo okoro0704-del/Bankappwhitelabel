@@ -31,8 +31,8 @@ import { MasterApplicationsPage } from './pages/master/MasterApplicationsPage';
 import { MasterCreateApplicationPage } from './pages/master/MasterCreateApplicationPage';
 import { MasterApplicationDetailPage } from './pages/master/MasterApplicationDetailPage';
 import { MasterBrandingPage } from './pages/master/MasterBrandingPage';
-import { useAuth } from './auth/AuthProvider';
-import { AuthProvider } from './auth/AuthProvider';
+import { AuthProvider, useAuth } from './auth/AuthProvider';
+import { homePathForUser } from './auth/homePath';
 import { ToastProvider } from './components/ui/Toast';
 import { TenantProvider } from './tenant/TenantProvider';
 import { CustomerTenantGate } from './tenant/CustomerTenantGate';
@@ -41,7 +41,7 @@ function HomeRedirect() {
   const { loading, appUser } = useAuth();
   if (loading) return null;
   if (!appUser) return <Navigate to="/login" replace />;
-  return <Navigate to={appUser.role === 'admin' ? '/admin' : '/app'} replace />;
+  return <Navigate to={homePathForUser(appUser)} replace />;
 }
 
 function RootLayout() {

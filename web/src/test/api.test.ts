@@ -88,3 +88,33 @@ describe('format helpers', () => {
     expect(formatMoney(12.5, 'USD')).toMatch(/12\.50/);
   });
 });
+
+describe('homePathForUser', () => {
+  it('prefers Master over tenant admin', async () => {
+    const { homePathForUser } = await import('../auth/homePath');
+    expect(
+      homePathForUser({
+        userId: 'u1',
+        role: 'admin',
+        accountStatus: 'active',
+        email: 'a@b.c',
+        username: 'a',
+        firstName: 'A',
+        lastName: 'B',
+        isMasterAdmin: true,
+      }),
+    ).toBe('/master');
+    expect(
+      homePathForUser({
+        userId: 'u1',
+        role: 'admin',
+        accountStatus: 'active',
+        email: 'a@b.c',
+        username: 'a',
+        firstName: 'A',
+        lastName: 'B',
+        isMasterAdmin: false,
+      }),
+    ).toBe('/admin');
+  });
+});

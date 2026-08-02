@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { homePathForUser } from '../auth/homePath';
 import { Skeleton } from './ui/Feedback';
 
 export function ProtectedRoute({ role }: { role?: 'admin' | 'user' }) {
@@ -45,7 +46,7 @@ export function PublicOnlyRoute() {
   }
 
   if (session && appUser) {
-    return <Navigate to={appUser.role === 'admin' ? '/admin' : '/app'} replace />;
+    return <Navigate to={homePathForUser(appUser)} replace />;
   }
 
   return <Outlet />;
