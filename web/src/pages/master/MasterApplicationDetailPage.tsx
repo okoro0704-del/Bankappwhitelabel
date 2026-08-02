@@ -392,18 +392,36 @@ export function MasterApplicationDetailPage() {
             value={deployment.dnsRecord.target}
             onCopy={() => copyText(deployment.dnsRecord.target)}
           />
-          <HandoffRow label="Current DNS status" value={dnsLabel(deployment.dnsStatus)} />
+          <HandoffRow
+            label="Current DNS status"
+            value={
+              !deployment.dnsCheckedAt && deployment.dnsStatus === 'not_configured'
+                ? 'Not checked yet'
+                : dnsLabel(deployment.dnsStatus)
+            }
+          />
           <HandoffRow
             label="Verification status"
             value={
               deployment.dnsStatus === 'verified'
                 ? 'Verified'
-                : deployment.dnsStatus === 'failed'
-                  ? 'Not verified'
-                  : 'Not verified yet'
+                : !deployment.dnsCheckedAt
+                  ? 'Click Verify DNS to check'
+                  : deployment.dnsStatus === 'failed'
+                    ? 'Not verified'
+                    : 'Not verified yet'
             }
           />
         </div>
+
+        {!deployment.dnsCheckedAt ? (
+          <Alert tone="info" title="DNS has not been checked yet">
+            Public DNS may already be in place. Click <strong>Verify DNS</strong>, then{' '}
+            <strong>Verify SSL</strong>. If buttons fail, redeploy the <code>master-deploy</code>{' '}
+            Edge Function and confirm Edge secrets <code>TENANT_BASE_DOMAIN</code> and{' '}
+            <code>DEPLOYMENT_DNS_TARGET</code>.
+          </Alert>
+        ) : null}
 
         {verifyMessage ? (
           <Alert tone={deployment.dnsStatus === 'verified' ? 'success' : 'warning'}>
