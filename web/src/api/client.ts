@@ -1,80 +1,26 @@
 import { ApiError } from './errors';
-import type { ApiErrorBody, ApiSuccess } from '../types/api';
 
 export type TokenProvider = () => Promise<string | null>;
 
 let tokenProvider: TokenProvider = async () => null;
 
+/** Kept for AuthProvider compatibility; Edge invokes use getAccessToken directly. */
 export function setAccessTokenProvider(provider: TokenProvider): void {
   tokenProvider = provider;
 }
 
-function apiBaseUrl(): string {
-  const configured = import.meta.env.VITE_API_BASE_URL;
-  if (configured === undefined || configured === null) {
-    return '';
-  }
-  return configured.replace(/\/$/, '');
+export function getTokenProvider(): TokenProvider {
+  return tokenProvider;
 }
 
+/** @deprecated Prefer supabase-rpc / endpoints. Kept for tests that import apiRequest. */
 export async function apiRequest<T>(
-  path: string,
-  options: RequestInit & { auth?: boolean } = {},
+  _path: string,
+  _options: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
-  const { auth = true, headers, ...rest } = options;
-  const requestHeaders = new Headers(headers);
-
-  if (!requestHeaders.has('Content-Type') && rest.body) {
-    requestHeaders.set('Content-Type', 'application/json');
-  }
-
-  if (auth) {
-    const token = await tokenProvider();
-    if (!token) {
-      throw new ApiError('UNAUTHENTICATED', 'Authentication required', 401);
-    }
-    requestHeaders.set('Authorization', `Bearer ${token}`);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      ...rest,
-      headers: requestHeaders,
-    });
-  } catch {
-    throw new ApiError('NETWORK_ERROR', 'Unable to reach the server', 0);
-  }
-
-  let payload: unknown = null;
-  const text = await response.text();
-  if (text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      const looksLikeHtml = /^\s*</.test(text) || /<!doctype html/i.test(text);
-      throw new ApiError(
-        looksLikeHtml ? 'API_UNREACHABLE' : 'INTERNAL_ERROR',
-        looksLikeHtml
-          ? 'The API is not reachable from this site. Set API_ORIGIN (or VITE_API_BASE_URL) on Netlify and redeploy.'
-          : 'Unexpected response from server',
-        response.status,
-      );
-    }
-  }
-
-  if (!response.ok) {
-    const body = payload as ApiErrorBody | null;
-    throw new ApiError(
-      body?.error?.code ?? 'INTERNAL_ERROR',
-      body?.error?.message ?? 'Request failed',
-      response.status,
-    );
-  }
-
-  if (payload && typeof payload === 'object' && 'data' in payload) {
-    return (payload as ApiSuccess<T>).data;
-  }
-
-  return payload as T;
+  throw new ApiError(
+    'API_UNREACHABLE',
+    'REST API removed — use Supabase client endpoints',
+    0,
+  );
 }

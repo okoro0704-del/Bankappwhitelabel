@@ -1,55 +1,68 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { apiRequest, setAccessTokenProvider } from '../api/client';
+import { describe, expect, it } from 'vitest';
 import { ApiError, getFriendlyErrorMessage } from '../api/errors';
+import { mapProfile, mapTransfer, mapWallet } from '../api/mappers';
+import { extractTenantLabelUnderBaseDomain } from '../tenant/resolve';
 import { accountTypeLabel, formatMoney } from '../utils/format';
 
-describe('API client', () => {
-  beforeEach(() => {
-    setAccessTokenProvider(async () => 'test-token');
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('attaches Authorization bearer token', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => JSON.stringify({ data: { ok: true } }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    await apiRequest('/api/session');
-
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const headers = fetchMock.mock.calls[0][1].headers as Headers;
-    expect(headers.get('Authorization')).toBe('Bearer test-token');
-  });
-
-  it('throws UNAUTHENTICATED when token provider returns null', async () => {
-    setAccessTokenProvider(async () => null);
-    await expect(apiRequest('/api/session')).rejects.toMatchObject({
-      code: 'UNAUTHENTICATED',
-    });
-  });
-
-  it('maps API error envelope', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: async () =>
-          JSON.stringify({ error: { code: 'FORBIDDEN', message: 'Nope' } }),
+describe('Supabase row mappers', () => {
+  it('maps profile and wallet rows to camelCase UI types', () => {
+    expect(
+      mapProfile({
+        id: 'p1',
+        user_id: 'u1',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+        email: 'ada@example.com',
+        phone: null,
+        username: 'ada',
+        status: 'active',
+        role: 'user',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
       }),
-    );
+    ).toMatchObject({ userId: 'u1', firstName: 'Ada', username: 'ada' });
 
-    await expect(apiRequest('/api/admin/users')).rejects.toBeInstanceOf(ApiError);
-    await expect(apiRequest('/api/admin/users')).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-      status: 403,
-    });
+    expect(
+      mapWallet({
+        id: 'w1',
+        account_id: 'a1',
+        balance: '10.50',
+        currency: 'USD',
+        updated_at: '2026-01-01T00:00:00Z',
+      }),
+    ).toMatchObject({ accountId: 'a1', balance: 10.5 });
+  });
+
+  it('maps transfer recipient nested shape', () => {
+    expect(
+      mapTransfer({
+        id: 't1',
+        reference: 'TRF1',
+        status: 'processing',
+        amount: 5,
+        recipient_name: 'Bob',
+        recipient_account: '123',
+        recipient_bank: 'Bank',
+        description: null,
+        current_stage: 1,
+        stages_completed: 0,
+        reason_code: null,
+        failure_reason: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        completed_at: null,
+      }).recipient,
+    ).toEqual({ name: 'Bob', account: '123', bank: 'Bank' });
+  });
+});
+
+describe('base-domain tenant label', () => {
+  it('only accepts labels under the configured base domain', () => {
+    expect(extractTenantLabelUnderBaseDomain('acme.app.example.com', 'app.example.com')).toBe(
+      'acme',
+    );
+    expect(extractTenantLabelUnderBaseDomain('acme.evil.com', 'app.example.com')).toBeNull();
+    expect(extractTenantLabelUnderBaseDomain('www.app.example.com', 'app.example.com')).toBeNull();
   });
 });
 
@@ -60,6 +73,7 @@ describe('API error handling', () => {
     );
     expect(getFriendlyErrorMessage(new ApiError('ACCOUNT_INACTIVE', 'x'))).toContain('inactive');
     expect(getFriendlyErrorMessage(new ApiError('UNAUTHENTICATED', 'x'))).toContain('session');
+    expect(getFriendlyErrorMessage(new ApiError('API_UNREACHABLE', 'x'))).toContain('API');
   });
 });
 

@@ -1,3 +1,2 @@
-# No API_ORIGIN — set it on Netlify so /api proxies to your backend.
 # SPA fallback
 /*    /index.html   200

@@ -1,0 +1,19 @@
+# Minimal Supabase config for migrations + Edge Functions.
+# Run `npx supabase link` against your project before db push / functions deploy.
+
+project_id = "bank-app-white-label"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[functions.transfer-actions]
+verify_jwt = true
+
+[functions.admin-ops]
+verify_jwt = true
+
+[functions.master-deploy]
+verify_jwt = true

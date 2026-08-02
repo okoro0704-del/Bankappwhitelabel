@@ -4,8 +4,8 @@ This document describes the white-label multi-tenant architecture.
 
 | Status | Meaning |
 |--------|---------|
-| **Implemented (Phase 1–5)** | Tenant schema, branding, Master Admin, TenantResolver, Master API, public tenant config, financial isolation, Master Dashboard, runtime branding, **deployment metadata + DNS verification (manual provider)** |
-| **Planned later** | DNS/hosting provider automation, owner invitation flows |
+| **Implemented** | Tenant schema, branding, Master Admin, public tenant config RPC, financial isolation, Master Dashboard, runtime branding, deployment metadata, **Supabase Edge** Netlify provision/DNS/SSL |
+| **Removed** | Node HTTP API / Railway — browser talks to Supabase Auth + RLS + Edge Functions |
 
 ---
 
@@ -22,7 +22,7 @@ MASTER APPLICATION (Master Admins)
 
 Each tenant is one independently branded application instance that reuses the existing banking application functionality.
 
-The **Master Admin application** creates and manages tenants. It is **not** the per-tenant admin dashboard (`/api/admin/*`).
+The **Master Admin application** creates and manages tenants. It is **not** the per-tenant admin dashboard.
 
 ---
 
