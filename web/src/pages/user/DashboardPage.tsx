@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge, TypeBadge } from '../../components/ui/StatusBadges';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
@@ -216,9 +216,6 @@ export function UserDashboardPage() {
           ) : null}
         </div>
       </div>
-
-      <Alert tone="info">
-      </Alert>
 
       <TransactionDetailModal
         transactionId={selectedTx?.id ?? null}
