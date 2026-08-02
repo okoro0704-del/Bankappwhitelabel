@@ -509,7 +509,7 @@ export function AdminSettingsPage() {
           variant="secondary"
           onClick={async () => {
             await signOut();
-            navigate('/login');
+            navigate('/admin/login');
           }}
         >
           Sign out
