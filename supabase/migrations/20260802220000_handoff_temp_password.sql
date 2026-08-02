@@ -151,9 +151,12 @@ begin
   perform public.require_master_admin();
 
   update public.tenants set
-    dns_status = coalesce(p_dns_status, dns_status),
-    ssl_status = coalesce(p_ssl_status, ssl_status),
-    deployment_status = coalesce(p_deployment_status, deployment_status),
+    dns_status = coalesce(p_dns_status::public.tenant_dns_status, dns_status),
+    ssl_status = coalesce(p_ssl_status::public.tenant_ssl_status, ssl_status),
+    deployment_status = coalesce(
+      p_deployment_status::public.tenant_deployment_status,
+      deployment_status
+    ),
     dns_checked_at = coalesce(p_dns_checked_at, dns_checked_at),
     dns_verified_at = case
       when p_dns_status is not null and p_dns_status <> 'verified' then null
