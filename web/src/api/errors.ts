@@ -31,7 +31,7 @@ const FRIENDLY: Record<string, string> = {
   METHOD_NOT_ALLOWED: 'This action is not supported.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
   API_UNREACHABLE:
-    'The API is not reachable from this site. Set API_ORIGIN (or VITE_API_BASE_URL) on Netlify and redeploy.',
+    'Unable to reach Supabase. Check VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY and that Edge Functions are deployed.',
   NETWORK_ERROR: 'Unable to reach the server. Check your connection and try again.',
   DEPLOYMENT_NOT_CONFIGURED: 'Deployment provider is not configured on the server.',
   NETLIFY_AUTH_FAILED: 'Netlify authentication failed. Check server credentials.',

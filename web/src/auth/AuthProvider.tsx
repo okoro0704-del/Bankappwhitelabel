@@ -10,9 +10,8 @@ import {
 import type { Session } from '@supabase/supabase-js';
 
 import { api } from '../api/endpoints';
-import { setAccessTokenProvider } from '../api/client';
 import { ApiError, getFriendlyErrorMessage } from '../api/errors';
-import { getAccessToken, getSupabase } from './supabase';
+import { getSupabase } from './supabase';
 import type { SessionUser } from '../types/api';
 
 interface AuthState {
@@ -37,10 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [appUser, setAppUser] = useState<SessionUser | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAccessTokenProvider(getAccessToken);
-  }, []);
 
   const hydrate = useCallback(async (next: Session | null) => {
     setSession(next);
@@ -105,24 +100,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrate]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    setError(null);
-    const { data, error: authError } = await getSupabase().auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setError(null);
+      const { data, error: authError } = await getSupabase().auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (authError) {
-      const message =
-        authError.message.toLowerCase().includes('invalid')
+      if (authError) {
+        const message = authError.message.toLowerCase().includes('invalid')
           ? 'Invalid email or password.'
           : authError.message;
-      setError(message);
-      throw new ApiError('UNAUTHENTICATED', message, 401);
-    }
+        setError(message);
+        throw new ApiError('UNAUTHENTICATED', message, 401);
+      }
 
-    await hydrate(data.session);
-  }, [hydrate]);
+      await hydrate(data.session);
+    },
+    [hydrate],
+  );
 
   const signOut = useCallback(async () => {
     setError(null);

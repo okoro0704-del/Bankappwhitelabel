@@ -110,7 +110,7 @@ Helpers:
 
 Client-supplied `tenantId`, `role`, `accountType`, or balances are never authoritative.
 
-`X-Tenant-Slug` is a **development resolution** override only (`ALLOW_DEV_TENANT_HEADER=true` and non-production). It never grants membership or bypasses `actor.tenantId` checks on protected APIs.
+`X-Tenant-Slug` is **removed** from the production path. Public branding uses hostname → `get_tenant_public_config` only. Actor tenant for money ops comes from `profiles.tenant_id`.
 
 ---
 
@@ -120,7 +120,7 @@ Client-supplied `tenantId`, `role`, `accountType`, or balances are never authori
 
 - `profiles.tenant_id`
 - Tenants / branding / master_admins
-- TenantResolver + Master API + public config
+- Public branding RPC + Master RPCs / Edge deploy
 
 ### Phase 2 (Implemented now)
 
@@ -162,140 +162,124 @@ Funding resolves wallet/account then asserts same tenant before calling `fund_wa
 
 ---
 
-## API endpoint classification (Implemented)
+## Client / Supabase contract (Implemented)
 
 ### Public
 
-- `GET /health`
-- `GET /api/tenant/config` (hostname/dev resolution; public branding only)
+- RPC `get_tenant_public_config(subdomain)` — active tenant branding only
+- Localhost / missing label → `VITE_TENANT_DEV_DEFAULT_SLUG` (default `northline`) in Vite DEV only
 
-### Authenticated user (own tenant + ownership)
+### Authenticated user (own tenant + ownership via RLS)
 
-- `/api/session`, `/api/me/*`, `/api/transfers`, `/api/transactions/:id`, verification routes
+- RPC `get_my_session()`
+- PostgREST reads: profiles, accounts, wallets, transactions, transfers
+- Edge `transfer-actions`: create / verify / complete
 
 ### Tenant Admin (own tenant only)
 
-- `/api/admin/*`
+- PostgREST admin list/detail reads (RLS `is_tenant_admin`)
+- Edge `admin-ops`: `fundWallet`, `setProfileStatus`, `createUser`
 
 ### Master Admin (platform)
 
-- `/api/master/tenants*`
+- RPCs `master_*` for tenant CRUD / status
+- Edge `master-deploy`: provision / verify DNS / SSL
 
-### Development-only
+### Removed
 
-- `/api/dev/transfers/:id/verification-code` (admin + flags + non-production; still tenant-scoped)
+- Node `/api/*` HTTP server, Railway, `API_ORIGIN`, Vite `/api` proxy, CORS API gateway
 
 ---
 
 ## Tenant resolution (Implemented)
 
-`TenantResolver`:
+Authoritative public branding:
 
-1. Hostname / subdomain → `tenants.subdomain` or `slug`
-2. Dev only: `X-Tenant-Slug` when allowed
-3. Local default: `TENANT_DEV_DEFAULT_SLUG` (default `northline`)
+1. Browser extracts label under `VITE_TENANT_BASE_DOMAIN`
+2. RPC `get_tenant_public_config` loads **active** tenant + branding (SECURITY DEFINER)
+3. Unknown / inactive → not found / unavailable UI
 
-Unknown tenants → safe not found.
-
-### Planned later
-
-DNS, TLS, edge routing, Netlify automation.
+Actor tenant for financial ops comes from `profiles.tenant_id` (JWT user), never from a client-supplied tenant id.
 
 ---
 
-## Production topology (Phase 6)
+## Production topology
 
-Creating a tenant does **not** create a new application deployment. One frontend build and one API serve every tenant subdomain.
+Creating a tenant does **not** create a new frontend deployment. One Netlify SPA serves every tenant hostname; Supabase is Auth + DB + Edge Functions.
 
 ```text
                          Production
                              │
-                    yourdomain.com (optional apex)
-                             │
                   ┌──────────┴──────────┐
-                  │                     │
-     bank-a.app.yourdomain.com   bank-b.app.yourdomain.com
+     bank-a.{TENANT_BASE_DOMAIN}   bank-b.{TENANT_BASE_DOMAIN}
                   │                     │
                   └──────────┬──────────┘
                              │
-                    Same frontend build
+                    Same Netlify SPA build
                              │
-                       Same API
+                    Supabase Auth / DB / Edge
                              │
-                       Supabase
-                             │
-                    TenantResolver
-                   (TENANT_BASE_DOMAIN)
+              get_tenant_public_config(subdomain)
                              │
                  Tenant-specific branding / data
 ```
 
 Recommended topology:
 
-1. Static frontend (or edge) serves the same SPA on every tenant hostname.
-2. API is on a fixed host (e.g. `api.yourdomain.com`) or same-origin via reverse proxy.
-3. `CORS_ORIGIN` lists exact Master origins and/or `https://*.{TENANT_BASE_DOMAIN}`.
-4. `TENANT_BASE_DOMAIN` is authoritative for hostname **generation and resolution**.
-5. DNS CNAME for each `{subdomain}.{TENANT_BASE_DOMAIN}` → `DEPLOYMENT_DNS_TARGET`.
+1. Static frontend on Netlify serves the same SPA on every tenant hostname.
+2. Privileged logic runs in Supabase Edge Functions (service role + user JWT checks).
+3. `TENANT_BASE_DOMAIN` is authoritative for hostname generation and public config lookup.
+4. DNS CNAME for each `{subdomain}.{TENANT_BASE_DOMAIN}` → `DEPLOYMENT_DNS_TARGET` (shared Netlify site).
 
 ### Hostname resolution hardening
 
-- Only `{label}.{TENANT_BASE_DOMAIN}` (optional `www.` prefix) resolves.
-- Attacker hosts like `{label}.evil.com` or `{base}.attacker.com` → not found.
-- Production: no `TENANT_DEV_DEFAULT_SLUG` fallback; localhost / missing Host → not found.
-- `X-Tenant-Slug` never overrides identity in production (startup refuses `ALLOW_DEV_TENANT_HEADER=true`).
+- Only `{label}.{TENANT_BASE_DOMAIN}` resolves for public branding.
+- Attacker hosts like `{label}.evil.com` → no label under base → unavailable.
+- Reserved labels (`www`, `api`, `master`, `admin`) rejected client-side.
 
-### CORS
+### Edge secrets (never `VITE_*`)
 
-- Never `Access-Control-Allow-Origin: *`.
-- Allow exact origins and single-label patterns: `https://*.app.example.com`.
-- Multi-label hosts (`a.b.app.example.com`) are rejected by the pattern matcher.
+`VERIFICATION_CODE_PEPPER`, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, optional `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID`. Service role is injected by Supabase for Edge Functions.
 
-### Rate limiting (hosting layer)
-
-Application-level protections today:
+### Rate limiting / idempotency
 
 - Verification codes: per-code attempt limits (`TOO_MANY_VERIFICATION_ATTEMPTS`).
 - Transfer idempotency keys.
+- Hosting-layer rate limits (Netlify / Supabase) recommended in production.
 - Auth via Supabase (no custom password-spray limiter in-app).
 
-Production should add edge/WAF or API-gateway rate limits for:
+Production should add edge/WAF rate limits for:
 
-- `/api/session`, password reset, public `/api/tenant/config`
-- Master write endpoints
+- Auth (sign-in / password reset)
+- Public branding RPC
+- Master write RPCs / Edge deploy
 - Transfer create / verification submit
 
 Do not change transfer business rules solely to add rate limiting.
 
 ### Deployment readiness
 
-`ready` requires verified DNS **and** verified SSL. Creating a tenant or activating it does not invent Ready. Frontend cannot PATCH deployment status.
+`ready` requires verified DNS **and** verified SSL. Creating a tenant or activating it does not invent Ready. Frontend cannot PATCH deployment status without Master auth (Edge / RPC).
 
-## Live verification readiness (Phase 8)
-
-Automated tests cover mocked Netlify provisioning, production env guards, CORS tenant patterns, hostname fail-closed behavior, and secret non-exposure.
-
-Live checks that remain **manual / flagged**:
+## Live verification readiness
 
 | Check | How | Automated? |
 |-------|-----|------------|
-| Real Netlify DNS record creation | Master **Provision** on staging/prod | No — mocked in CI |
+| Real Netlify DNS record creation | Master **Provision** (Edge `master-deploy`) | No — manual |
 | Real SSL issuance | Wait + **Verify SSL** after DNS propagates | No |
-| Live Supabase Auth + RLS | `RUN_SUPABASE_INTEGRATION=1` | Optional / skipped by default |
-| Cross-tenant isolation on live DB | Manual smoke + integration flag | Partial (unit/mocked) |
+| Live Supabase Auth + RLS | Manual smoke against project | Manual |
+| Cross-tenant isolation on live DB | Manual smoke | Manual |
 
-Production startup (`assertProductionEnvSafety`) requires `CORS_ORIGIN`, Supabase keys, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, and — when `DEPLOYMENT_PROVIDER=netlify` — `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` (rejects placeholder `*.example.com` targets).
+Edge secrets must include `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, and — for Netlify automation — `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID`.
 
 See `docs/QA.md` for the full deployment sequence.
 
-## Netlify DNS automation (Phase 7)
+## Netlify DNS automation
 
 One shared Netlify site hosts the white-label frontend for every tenant.
 
 ```text
-Master Dashboard → POST /api/master/tenants/:id/provision
-        ↓
-NetlifyDeploymentProvider
+Master Dashboard → Edge master-deploy action=provision
         ↓
 PATCH site domain_aliases += {subdomain}.{TENANT_BASE_DOMAIN}
         ↓
@@ -308,15 +292,14 @@ Public DNS + TLS verification
 ready only when DNS verified AND SSL verified
 ```
 
-Server-only env:
+Edge Function secrets:
 
-- `DEPLOYMENT_PROVIDER=netlify` (or auto when token + site id set)
 - `NETLIFY_AUTH_TOKEN` — never `VITE_*`
 - `NETLIFY_SITE_ID` — shared site only (not client-selectable)
-- `NETLIFY_DNS_ZONE_ID` — optional; otherwise resolved from `TENANT_BASE_DOMAIN`
-- `TENANT_BASE_DOMAIN` / `DEPLOYMENT_DNS_TARGET` — reused from Phase 5
+- `NETLIFY_DNS_ZONE_ID` — optional
+- `TENANT_BASE_DOMAIN` / `DEPLOYMENT_DNS_TARGET`
 
-Manual fallback: `DEPLOYMENT_PROVIDER=manual` keeps Phase 5 verify-only behavior.
+Without Netlify tokens, Master **Provision** returns `DEPLOYMENT_NOT_CONFIGURED`; verify-dns still does public DNS/TLS checks.
 
 Activation remains separate from deployment readiness.
 
@@ -328,13 +311,13 @@ Server and client reject `javascript:` / `data:` / non-http(s) logo and favicon 
 ### Runtime customer branding (Phase 4)
 
 ```text
-hostname → TenantResolver → GET /api/tenant/config → TenantProvider → CSS vars / logo / title / login copy
+hostname → label under VITE_TENANT_BASE_DOMAIN → get_tenant_public_config → TenantProvider → CSS vars / logo / title / login copy
 ```
 
 - One Vite build serves every tenant.
 - Customer routes are gated until an **active** public config loads.
 - Inactive / unknown hosts → application unavailable (no silent Northline fallback in production).
-- Local development still uses `TENANT_DEV_DEFAULT_SLUG` (default `northline`) on localhost only.
+- Local development still uses `VITE_TENANT_DEV_DEFAULT_SLUG` (default `northline`) on localhost only.
 - Master Dashboard (`/master/*`) is not gated on customer branding.
 
 ---
@@ -349,44 +332,42 @@ Migration `20260731190000_tenant_isolation.sql` backfills all existing financial
 
 Frontend routes under `/master/*` (separate from `/app/*` and `/admin/*`):
 
-- `/master` — platform overview (counts from `GET /api/master/tenants`)
+- `/master` — platform overview (counts from `master_list_tenants` RPC)
 - `/master/login` — Master Admin sign-in (Supabase Auth)
 - `/master/applications` — tenant list
 - `/master/applications/new` — create tenant
 - `/master/applications/:tenantId` — detail, activate/deactivate, handoff copy fields
 - `/master/applications/:tenantId/branding` — branding editor + live preview
 
-Access requires `GET /api/session` → `isMasterAdmin: true`. Master APIs remain authoritative.
+Access requires `get_my_session()` → `isMasterAdmin: true`. Master RPCs / Edge remain authoritative.
 Master Admin is configuration-only — not a tenant financial administrator.
 
-## Deployment / DNS provisioning (Phase 5)
+## Deployment / DNS provisioning
 
 ```text
 Master creates tenant (inactive)
         ↓
 Configure branding + subdomain
         ↓
-Server builds hostname = {subdomain}.{TENANT_BASE_DOMAIN}
+Hostname = {subdomain}.{TENANT_BASE_DOMAIN}
         ↓
 Master shows required CNAME → DEPLOYMENT_DNS_TARGET
         ↓
-POST /api/master/tenants/:id/verify-dns
-        ↓
-ManualDeploymentProvider resolves DNS (no Netlify/Vercel/Cloudflare API)
+Edge master-deploy (provision / verifyDns / verifySsl)
         ↓
 Persists dns_status / ssl_status / deployment_status
         ↓
 Master activates tenant when ready (independent of DNS)
         ↓
-Customer host → TenantResolver → branded app
+Customer host → get_tenant_public_config → branded app
 ```
 
-One customer frontend/backend deployment serves every tenant hostname. DNS/SSL are never reported ready unless verification succeeds.
+One customer frontend deployment serves every tenant hostname. DNS/SSL are never reported ready unless verification succeeds.
 
-Environment (server-only):
+Environment:
 
-- `TENANT_BASE_DOMAIN` — e.g. `app.example.com`
-- `DEPLOYMENT_DNS_TARGET` — CNAME target for handoff + verification
+- Netlify `VITE_TENANT_BASE_DOMAIN` / `VITE_DEPLOYMENT_DNS_TARGET` (public handoff UI)
+- Edge secrets `TENANT_BASE_DOMAIN` / `DEPLOYMENT_DNS_TARGET` (+ Netlify tokens for automation)
 
 ## What remains out of scope
 

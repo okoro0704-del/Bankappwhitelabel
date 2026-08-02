@@ -59,7 +59,7 @@ export function AdminCreateUserPage() {
       <div className="page-header">
         <div>
           <h1>Create user</h1>
-          <p className="page-subtitle">Uses POST /api/admin/users</p>
+          <p className="page-subtitle">Creates Auth user, profile, account, and wallet in this tenant</p>
         </div>
         <Link className="btn btn-secondary" to="/admin/users">
           Back to users

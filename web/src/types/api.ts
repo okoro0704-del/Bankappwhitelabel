@@ -28,7 +28,7 @@ export interface SessionUser {
   username: string;
   firstName: string;
   lastName: string;
-  /** Resolved by the API from master_admins — never set client-side. */
+  /** Resolved by get_my_session RPC from master_admins — never set client-side. */
   isMasterAdmin?: boolean;
 }
 
