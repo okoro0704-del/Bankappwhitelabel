@@ -52,7 +52,14 @@ export async function apiRequest<T>(
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new ApiError('INTERNAL_ERROR', 'Unexpected response from server', response.status);
+      const looksLikeHtml = /^\s*</.test(text) || /<!doctype html/i.test(text);
+      throw new ApiError(
+        looksLikeHtml ? 'API_UNREACHABLE' : 'INTERNAL_ERROR',
+        looksLikeHtml
+          ? 'The API is not reachable from this site. Set API_ORIGIN (or VITE_API_BASE_URL) on Netlify and redeploy.'
+          : 'Unexpected response from server',
+        response.status,
+      );
     }
   }
 

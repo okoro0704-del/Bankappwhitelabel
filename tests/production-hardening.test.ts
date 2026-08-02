@@ -108,6 +108,63 @@ test('hostname under base domain: valid, unknown, attacker, malformed, port, cas
   assert.equal(extractTenantLabelUnderBaseDomain('api.app.example.com', base), null);
 });
 
+test('resolver prefers X-Forwarded-Host and Origin over API Host', async () => {
+  const repo = new InMemoryTenantRepository();
+  seedNorthline(repo);
+  const service = new TenantService(repo);
+  const resolver = new TenantResolver(repo);
+  setTenantServiceForTests(service);
+  setTenantResolverForTests(resolver);
+
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    TENANT_BASE_DOMAIN: process.env.TENANT_BASE_DOMAIN,
+  };
+
+  process.env.NODE_ENV = 'production';
+  process.env.TENANT_BASE_DOMAIN = 'app.example.com';
+
+  try {
+    await service.createTenant(masterAdmin, { name: 'Bank A', slug: 'bank-a' });
+
+    const byForwarded = await resolver.resolve({
+      headers: {
+        host: 'api.internal:3000',
+        'x-forwarded-host': 'bank-a.app.example.com',
+      },
+    });
+    assert.equal(byForwarded.tenant.slug, 'bank-a');
+
+    const byOrigin = await resolver.resolve({
+      headers: {
+        host: 'api.internal:3000',
+        origin: 'https://bank-a.app.example.com',
+      },
+    });
+    assert.equal(byOrigin.tenant.slug, 'bank-a');
+
+    await assert.rejects(
+      () =>
+        resolver.resolve({
+          headers: {
+            host: 'api.internal:3000',
+            origin: 'https://bank-a.evil.com',
+          },
+        }),
+      NotFoundError,
+    );
+  } finally {
+    process.env.NODE_ENV = previous.NODE_ENV;
+    if (previous.TENANT_BASE_DOMAIN === undefined) {
+      delete process.env.TENANT_BASE_DOMAIN;
+    } else {
+      process.env.TENANT_BASE_DOMAIN = previous.TENANT_BASE_DOMAIN;
+    }
+    resetTenantServiceForTests();
+    resetTenantResolverForTests();
+  }
+});
+
 test('production resolver rejects localhost, attacker hosts, and X-Tenant-Slug', async () => {
   const repo = new InMemoryTenantRepository();
   seedNorthline(repo);

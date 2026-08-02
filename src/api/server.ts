@@ -88,6 +88,7 @@ export const createApiServer = () => {
             typeof req.headers['x-forwarded-host'] === 'string'
               ? req.headers['x-forwarded-host']
               : undefined,
+          origin: typeof req.headers.origin === 'string' ? req.headers.origin : undefined,
           'x-tenant-slug':
             typeof req.headers['x-tenant-slug'] === 'string'
               ? req.headers['x-tenant-slug']

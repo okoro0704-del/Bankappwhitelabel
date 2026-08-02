@@ -1,5 +1,13 @@
 # Shared white-label SPA — one site for all tenant hostnames.
 # Build and publish from the Vite app directory.
+#
+# Required Netlify env (Site settings → Environment variables), then Redeploy:
+#   VITE_SUPABASE_URL
+#   VITE_SUPABASE_ANON_KEY
+#   API_ORIGIN=https://your-api-host   (proxies /api + /health; preferred)
+#   — or — VITE_API_BASE_URL=https://your-api-host  (direct cross-origin; needs CORS_ORIGIN on API)
+#
+# Vite vars are baked in at build time — change them → trigger a new deploy.
 
 [build]
   base = "web"
@@ -8,9 +16,3 @@
 
 [build.environment]
   NODE_VERSION = "22"
-
-# SPA fallback: serve index.html for client-side routes (/login, /app, /master, …).
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

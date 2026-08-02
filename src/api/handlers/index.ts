@@ -431,8 +431,8 @@ export const apiHandlers = {
 
   async getTenantConfig(input: ApiHandlerInput) {
     return runApi(async () => {
+      // Do not force Host — prefer X-Forwarded-Host / Origin (Netlify proxy or cross-origin SPA).
       const resolved = await tenantResolver.resolve({
-        hostname: input.headers?.host,
         headers: input.headers,
         query: input.query,
       });

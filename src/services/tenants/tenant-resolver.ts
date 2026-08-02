@@ -31,6 +31,41 @@ const headerValue = (
   return raw;
 };
 
+/** Hostname from a browser Origin / Referer URL (cross-origin SPA → API). */
+export const extractHostnameFromOriginHeader = (origin: string | undefined): string | null => {
+  if (!origin?.trim()) return null;
+  try {
+    const url = new URL(origin.trim());
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
+    return stripHostnamePort(url.hostname) || null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Prefer proxy / browser page host over the API server Host header.
+ * Order: explicit → X-Forwarded-Host → Origin → Host.
+ */
+export const resolveRequestHostname = (input: TenantResolutionInput): string | null => {
+  if (input.hostname?.trim()) {
+    return stripHostnamePort(input.hostname);
+  }
+  const forwarded = headerValue(input.headers, 'x-forwarded-host');
+  if (forwarded?.trim()) {
+    // X-Forwarded-Host may be a comma-separated list; use the first hop.
+    return stripHostnamePort(forwarded.split(',')[0] ?? forwarded);
+  }
+  const fromOrigin = extractHostnameFromOriginHeader(headerValue(input.headers, 'origin'));
+  if (fromOrigin) {
+    return fromOrigin;
+  }
+  const host = headerValue(input.headers, 'host');
+  return host?.trim() ? stripHostnamePort(host) : null;
+};
+
 /**
  * @deprecated Prefer extractTenantLabelUnderBaseDomain with TENANT_BASE_DOMAIN.
  * Kept for backward-compatible unit tests of unconstrained label parsing.
@@ -78,11 +113,6 @@ export class TenantResolver {
   constructor(private readonly repo: TenantRepositoryPort = tenantRepository) {}
 
   async resolve(input: TenantResolutionInput): Promise<TenantWithBranding> {
-    const hostHeader =
-      input.hostname ??
-      headerValue(input.headers, 'x-forwarded-host') ??
-      headerValue(input.headers, 'host');
-
     // Development escape hatch — disabled in production.
     if (allowDevTenantHeader()) {
       const headerSlug = headerValue(input.headers, 'x-tenant-slug')?.trim().toLowerCase();
@@ -91,11 +121,10 @@ export class TenantResolver {
       }
     }
 
+    const host = resolveRequestHostname(input);
     const baseDomain = getDeploymentEnvConfig().baseDomain;
 
-    if (hostHeader) {
-      const host = stripHostnamePort(hostHeader);
-
+    if (host) {
       if (isLocalDevHostname(host)) {
         if (isProduction()) {
           throw new NotFoundError('Tenant not found');
