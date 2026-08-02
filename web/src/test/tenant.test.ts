@@ -23,7 +23,10 @@ describe('tenant hostname helpers', () => {
     expect(isPlatformBaseHost('webfinance.app', 'webfinance.app')).toBe(true);
     expect(isPlatformBaseHost('www.webfinance.app', 'webfinance.app')).toBe(true);
     expect(isPlatformBaseHost('northline.webfinance.app', 'webfinance.app')).toBe(false);
-    expect(isPlatformBaseHost('webfinance.app', 'app.example.com')).toBe(false);
+    // Still platform when Netlify env base domain is wrong/missing
+    expect(isPlatformBaseHost('webfinance.app', 'app.example.com')).toBe(true);
+    expect(isPlatformBaseHost('webfinance.app', '')).toBe(true);
+    expect(isPlatformBaseHost('something.netlify.app', 'webfinance.app')).toBe(false);
   });
 });
 

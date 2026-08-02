@@ -46,10 +46,19 @@ export const extractTenantLabelUnderBaseDomain = (
   return label;
 };
 
-/** Apex / www of the tenant base domain — Web Finance platform host, not a tenant app. */
+/** Apex / www hosts are the Web Finance platform console, not a tenant app. */
 export const isPlatformBaseHost = (hostname: string, baseDomain: string): boolean => {
   const host = hostname.trim().toLowerCase().replace(/:\d+$/, '');
+  if (!host) return false;
+  // Shared Netlify preview hosts use the default tenant slug — not the console.
+  if (host.endsWith('.netlify.app')) return false;
+
   const base = baseDomain.trim().toLowerCase().replace(/:\d+$/, '');
-  if (!host || !base) return false;
-  return host === base || host === `www.${base}`;
+  if (base && (host === base || host === `www.${base}`)) return true;
+
+  // Fallback when env base domain is missing/mismatched: treat registrable apex / www as platform.
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length === 2) return true;
+  if (parts.length === 3 && parts[0] === 'www') return true;
+  return false;
 };
