@@ -31,6 +31,7 @@ export interface Tenant {
   status: TenantStatus;
   ownerUserId: string | null;
   subdomain: string;
+  handoffTempPassword: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,6 +54,7 @@ export interface TenantDnsRecordInstructions {
 export interface TenantDeploymentInfo {
   hostname: string;
   loginUrl: string;
+  adminDashboardUrl: string;
   baseDomain: string;
   dnsTarget: string;
   dnsStatus: TenantDnsStatus;
@@ -118,6 +120,7 @@ export interface UpdateTenantRequest {
   subdomain?: string;
   ownerUserId?: string | null;
   branding?: Partial<TenantBranding>;
+  handoffTempPassword?: string | null;
 }
 
 /** Deterministic Northline tenant id (matches backend migration seed). */

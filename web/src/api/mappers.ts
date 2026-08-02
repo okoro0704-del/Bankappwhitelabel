@@ -154,6 +154,7 @@ export function buildDeploymentInfo(
   return {
     hostname,
     loginUrl: `https://${hostname}/login`,
+    adminDashboardUrl: `https://${hostname}/admin`,
     baseDomain,
     dnsTarget,
     dnsStatus: tenant.dns_status as TenantDeploymentInfo['dnsStatus'],
@@ -210,6 +211,7 @@ export function mapMasterDetailRpc(
       status: tenant.status as MasterTenantDetail['tenant']['status'],
       ownerUserId: (tenant.ownerUserId as string | null) ?? null,
       subdomain: String(tenant.subdomain),
+      handoffTempPassword: (tenant.handoffTempPassword as string | null) ?? null,
       createdAt: String(tenant.createdAt),
       updatedAt: String(tenant.updatedAt),
     },

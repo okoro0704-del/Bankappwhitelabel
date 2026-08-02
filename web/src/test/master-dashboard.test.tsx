@@ -81,6 +81,7 @@ const branding: TenantBranding = {
 const sampleDeployment = {
   hostname: 'partner.app.example.com',
   loginUrl: 'https://partner.app.example.com/login',
+  adminDashboardUrl: 'https://partner.app.example.com/admin',
   baseDomain: 'app.example.com',
   dnsTarget: 'edgeserver.example.com',
   dnsStatus: 'pending' as const,
@@ -125,6 +126,7 @@ const sampleDetail: MasterTenantDetail = {
     status: sampleTenant.status,
     ownerUserId: sampleTenant.ownerUserId,
     subdomain: sampleTenant.subdomain,
+    handoffTempPassword: 'TempPass123!',
     createdAt: sampleTenant.createdAt,
     updatedAt: sampleTenant.updatedAt,
   },
@@ -360,6 +362,10 @@ describe('Master applications', () => {
     );
 
     expect(await screen.findByText('Handoff information')).toBeInTheDocument();
+    expect(screen.getByText('Admin Dashboard URL')).toBeInTheDocument();
+    expect(screen.getAllByText('https://partner.app.example.com/admin').length).toBeGreaterThan(0);
+    expect(screen.getByText('Temporary password')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('TempPass123!')).toBeInTheDocument();
     expect(screen.getAllByText('partner').length).toBeGreaterThan(0);
     expect(screen.getAllByText(sampleTenant.id).length).toBeGreaterThan(0);
   });

@@ -38,6 +38,12 @@ import type {
   UpdateTenantRequest,
 } from '../types/tenant';
 import { extractTenantLabelUnderBaseDomain } from '../tenant/resolve';
+import {
+  checkTls,
+  deriveDeploymentStatus,
+  verifyPublicDns,
+} from '../master/dnsVerify';
+import type { TenantDnsStatus, TenantSslStatus } from '../types/tenant';
 
 export interface ListParams {
   limit?: number;
@@ -382,8 +388,12 @@ export const api = {
       p_name: body.name ?? null,
       p_subdomain: body.subdomain ?? null,
       p_owner_user_id: body.ownerUserId ?? null,
-      p_clear_owner: body.ownerUserId === null,
+      p_clear_owner: Object.prototype.hasOwnProperty.call(body, 'ownerUserId') && body.ownerUserId === null,
       p_branding: body.branding ?? null,
+      p_handoff_temp_password: body.handoffTempPassword ?? null,
+      p_clear_handoff_temp_password:
+        Object.prototype.hasOwnProperty.call(body, 'handoffTempPassword') &&
+        body.handoffTempPassword === null,
     });
     return mapMasterDetailRpc(data, baseDomain(), dnsTarget());
   },
@@ -404,26 +414,113 @@ export const api = {
     return mapMasterDetailRpc(data, baseDomain(), dnsTarget());
   },
 
-  masterVerifyTenantDns: (tenantId: string) =>
-    invokeFunction<DnsVerificationResult>('master-deploy', {
-      action: 'verifyDns',
-      tenantId,
-    }),
+  masterVerifyTenantDns: async (tenantId: string): Promise<DnsVerificationResult> => {
+    return patchDeploymentFromPublicChecks(tenantId, { mode: 'dns' });
+  },
 
-  masterVerifyTenantSsl: (tenantId: string) =>
-    invokeFunction<DnsVerificationResult>('master-deploy', {
-      action: 'verifySsl',
-      tenantId,
-    }),
+  masterVerifyTenantSsl: async (tenantId: string): Promise<DnsVerificationResult> => {
+    return patchDeploymentFromPublicChecks(tenantId, { mode: 'ssl' });
+  },
 
-  masterProvisionTenant: (tenantId: string) =>
-    invokeFunction<DnsVerificationResult>('master-deploy', {
-      action: 'provision',
-      tenantId,
-    }),
+  masterProvisionTenant: async (tenantId: string): Promise<DnsVerificationResult> => {
+    // Netlify writes still go through Edge; public DNS/SSL status is patched client-side
+    // so Verify works even when the Edge verifier is stale or undeployed.
+    let edgeMessage: string | null = null;
+    try {
+      const edge = await invokeFunction<DnsVerificationResult>('master-deploy', {
+        action: 'provision',
+        tenantId,
+      });
+      edgeMessage = edge.message ?? null;
+    } catch (error) {
+      // If Edge is unavailable, still attempt public verification so Master can progress.
+      if (!(error instanceof ApiError && error.code === 'DEPLOYMENT_NOT_CONFIGURED')) {
+        // Keep going for network/function errors after recording message
+        edgeMessage = error instanceof Error ? error.message : 'Provisioning Edge call failed';
+      } else {
+        throw error;
+      }
+    }
+
+    const checked = await patchDeploymentFromPublicChecks(tenantId, {
+      mode: 'provision',
+      markProvisioned: true,
+    });
+    return {
+      ...checked,
+      message: edgeMessage ? `${edgeMessage} · ${checked.message}` : checked.message,
+    };
+  },
 
   masterGetTenantDeployment: async (tenantId: string): Promise<TenantDeploymentInfo> => {
     const detail = await api.masterGetTenant(tenantId);
     return detail.deployment;
   },
 };
+
+async function patchDeploymentFromPublicChecks(
+  tenantId: string,
+  options: { mode: 'dns' | 'ssl' | 'provision'; markProvisioned?: boolean },
+): Promise<DnsVerificationResult> {
+  const detail = await api.masterGetTenant(tenantId);
+  const hostname = detail.deployment.hostname;
+  const expectedTarget = detail.deployment.dnsTarget;
+  const now = new Date().toISOString();
+
+  const dns = await verifyPublicDns(hostname, expectedTarget);
+  let dnsStatus: TenantDnsStatus = dns.status;
+  let sslStatus: TenantSslStatus = detail.deployment.sslStatus;
+  let message = dns.detail;
+  let code: string | null = dnsStatus === 'verified' ? null : 'DNS_NOT_READY';
+
+  if (options.mode === 'ssl' || options.mode === 'provision') {
+    if (dnsStatus !== 'verified') {
+      sslStatus = 'not_configured';
+      message = dns.detail;
+      code = 'DNS_NOT_READY';
+    } else {
+      const tls = await checkTls(hostname);
+      sslStatus = tls.ok ? 'verified' : 'pending';
+      message = tls.ok ? tls.detail : tls.detail;
+      code = tls.ok ? null : 'SSL_NOT_READY';
+    }
+  } else if (dnsStatus === 'verified') {
+    message = 'DNS verified';
+    code = null;
+  }
+
+  const deploymentStatus = deriveDeploymentStatus(
+    dnsStatus,
+    options.mode === 'dns' ? detail.deployment.sslStatus : sslStatus,
+  );
+  const data = await rpcJson<Record<string, unknown>>('master_patch_tenant_deployment', {
+    p_tenant_id: tenantId,
+    p_dns_status: dnsStatus,
+    p_ssl_status: options.mode === 'dns' ? detail.deployment.sslStatus : sslStatus,
+    p_deployment_status: deploymentStatus,
+    p_dns_checked_at: now,
+    p_dns_verified_at: dnsStatus === 'verified' ? now : null,
+    p_ssl_checked_at: options.mode === 'dns' ? null : now,
+    p_last_provisioned_at: options.markProvisioned ? now : null,
+    p_last_provision_error: code ? message : null,
+    p_clear_provision_error: !code,
+  });
+
+  const tenant = mapMasterDetailRpc(data, baseDomain(), dnsTarget());
+  const finalSsl = options.mode === 'dns' ? tenant.deployment.sslStatus : sslStatus;
+  const finalDeployment = tenant.deployment.deploymentStatus;
+
+  return {
+    status: options.mode === 'ssl' ? finalSsl : dnsStatus,
+    hostname,
+    expectedTarget,
+    deploymentStatus: finalDeployment,
+    dnsStatus,
+    sslStatus: finalSsl,
+    message,
+    checkedAt: now,
+    code,
+    detail: message,
+    tenant,
+  };
+}

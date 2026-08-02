@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useToast } from '../../components/ui/Toast';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { generateTemporaryPassword } from '../../master/dnsVerify';
 import { formatDate, truncateMiddle } from '../../utils/format';
 import type { TenantDeploymentStatus, TenantDnsStatus } from '../../types/tenant';
 
@@ -62,6 +63,8 @@ export function MasterApplicationDetailPage() {
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [tempPasswordDraft, setTempPasswordDraft] = useState<string | null>(null);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const tenant = detail.data?.tenant;
   const branding = detail.data?.branding;
@@ -187,6 +190,22 @@ export function MasterApplicationDetailPage() {
       setActionError(getFriendlyErrorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveTemporaryPassword(next: string | null) {
+    if (!tenant) return;
+    setSavingPassword(true);
+    setActionError(null);
+    try {
+      await api.masterUpdateTenant(tenant.id, { handoffTempPassword: next });
+      pushToast(next ? 'Temporary password saved' : 'Temporary password cleared', 'success');
+      setTempPasswordDraft(null);
+      await detail.reload();
+    } catch (err) {
+      setActionError(getFriendlyErrorMessage(err));
+    } finally {
+      setSavingPassword(false);
     }
   }
 
@@ -528,7 +547,8 @@ export function MasterApplicationDetailPage() {
       <div className="card card-pad stack">
         <h2 style={{ fontSize: '1.05rem' }}>Handoff information</h2>
         <p className="muted">
-          Share non-secret configuration with the application owner. Secrets are never shown here.
+          Deliverables for the application owner. Share the admin dashboard URL and temporary
+          password securely. Rotate the password after first login.
         </p>
         <div className="handoff-grid">
           <HandoffRow
@@ -540,6 +560,24 @@ export function MasterApplicationDetailPage() {
             label="Login URL"
             value={deployment.loginUrl}
             onCopy={() => copyText(deployment.loginUrl)}
+          />
+          <HandoffRow
+            label="Admin Dashboard URL"
+            value={deployment.adminDashboardUrl}
+            onCopy={() => copyText(deployment.adminDashboardUrl)}
+          />
+          <HandoffRow
+            label="Temporary password"
+            value={
+              tempPasswordDraft ??
+              tenant.handoffTempPassword ??
+              'Not set — generate or enter one below'
+            }
+            onCopy={
+              (tempPasswordDraft ?? tenant.handoffTempPassword)
+                ? () => copyText((tempPasswordDraft ?? tenant.handoffTempPassword)!)
+                : undefined
+            }
           />
           <HandoffRow
             label="Hostname"
@@ -579,6 +617,53 @@ export function MasterApplicationDetailPage() {
               branding.supportEmail ? () => copyText(branding.supportEmail!) : undefined
             }
           />
+        </div>
+
+        <div className="stack" style={{ marginTop: '0.75rem' }}>
+          <Field
+            label="Set temporary password"
+            htmlFor="handoff-temp-password"
+            hint="Shown in deliverables for the tenant admin. Not emailed automatically."
+          >
+            <Input
+              id="handoff-temp-password"
+              value={tempPasswordDraft ?? tenant.handoffTempPassword ?? ''}
+              onChange={(e) => setTempPasswordDraft(e.target.value)}
+              autoComplete="off"
+              placeholder="Generate or type a temporary password"
+            />
+          </Field>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy || savingPassword}
+              onClick={() => setTempPasswordDraft(generateTemporaryPassword())}
+            >
+              Generate
+            </Button>
+            <Button
+              type="button"
+              disabled={busy || savingPassword || !(tempPasswordDraft ?? tenant.handoffTempPassword)}
+              onClick={() =>
+                void saveTemporaryPassword(
+                  (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim() || null,
+                )
+              }
+            >
+              {savingPassword ? 'Saving…' : 'Save password'}
+            </Button>
+            {tenant.handoffTempPassword ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy || savingPassword}
+                onClick={() => void saveTemporaryPassword(null)}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
