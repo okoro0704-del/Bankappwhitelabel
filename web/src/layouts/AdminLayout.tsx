@@ -102,7 +102,7 @@ export function AdminLayout() {
                   onClick={async () => {
                     setMenuOpen(false);
                     await signOut();
-                    navigate('/login');
+                    navigate('/admin/login');
                   }}
                 >
                   Sign out
