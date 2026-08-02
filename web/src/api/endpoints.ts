@@ -467,25 +467,32 @@ async function patchDeploymentFromPublicChecks(
   const expectedTarget = detail.deployment.dnsTarget;
   const now = new Date().toISOString();
 
+  if (!hostname || hostname.endsWith('.app.example.com') || !expectedTarget) {
+    throw new ApiError(
+      'DEPLOYMENT_NOT_CONFIGURED',
+      `Cannot verify DNS: hostname=${hostname || '(empty)'} target=${expectedTarget || '(empty)'}. Set Netlify env VITE_TENANT_BASE_DOMAIN and VITE_DEPLOYMENT_DNS_TARGET, then redeploy.`,
+      400,
+    );
+  }
+
   const dns = await verifyPublicDns(hostname, expectedTarget);
   let dnsStatus: TenantDnsStatus = dns.status;
   let sslStatus: TenantSslStatus = detail.deployment.sslStatus;
-  let message = dns.detail;
+  let message = `${dns.detail} (checked ${hostname} → ${expectedTarget})`;
   let code: string | null = dnsStatus === 'verified' ? null : 'DNS_NOT_READY';
 
   if (options.mode === 'ssl' || options.mode === 'provision') {
     if (dnsStatus !== 'verified') {
       sslStatus = 'not_configured';
-      message = dns.detail;
       code = 'DNS_NOT_READY';
     } else {
       const tls = await checkTls(hostname);
       sslStatus = tls.ok ? 'verified' : 'pending';
-      message = tls.ok ? tls.detail : tls.detail;
+      message = `${tls.detail} (checked ${hostname})`;
       code = tls.ok ? null : 'SSL_NOT_READY';
     }
   } else if (dnsStatus === 'verified') {
-    message = 'DNS verified';
+    message = `DNS verified for ${hostname}`;
     code = null;
   }
 
@@ -493,28 +500,38 @@ async function patchDeploymentFromPublicChecks(
     dnsStatus,
     options.mode === 'dns' ? detail.deployment.sslStatus : sslStatus,
   );
-  const data = await rpcJson<Record<string, unknown>>('master_patch_tenant_deployment', {
-    p_tenant_id: tenantId,
-    p_dns_status: dnsStatus,
-    p_ssl_status: options.mode === 'dns' ? detail.deployment.sslStatus : sslStatus,
-    p_deployment_status: deploymentStatus,
-    p_dns_checked_at: now,
-    p_dns_verified_at: dnsStatus === 'verified' ? now : null,
-    p_ssl_checked_at: options.mode === 'dns' ? null : now,
-    p_last_provisioned_at: options.markProvisioned ? now : null,
-    p_last_provision_error: code ? message : null,
-    p_clear_provision_error: !code,
-  });
+
+  let data: Record<string, unknown>;
+  try {
+    data = await rpcJson<Record<string, unknown>>('master_patch_tenant_deployment', {
+      p_tenant_id: tenantId,
+      p_dns_status: dnsStatus,
+      p_ssl_status: options.mode === 'dns' ? detail.deployment.sslStatus : sslStatus,
+      p_deployment_status: deploymentStatus,
+      p_dns_checked_at: now,
+      p_dns_verified_at: dnsStatus === 'verified' ? now : null,
+      p_ssl_checked_at: options.mode === 'dns' ? null : now,
+      p_last_provisioned_at: options.markProvisioned ? now : null,
+      p_last_provision_error: code ? message : null,
+      p_clear_provision_error: !code,
+    });
+  } catch (error) {
+    const base = error instanceof ApiError ? error.message : 'Failed to save DNS status';
+    throw new ApiError(
+      'INTERNAL_ERROR',
+      `${base}. DNS check result was: ${message}. If this mentions handoff_temp_password, run migration 20260802220000 in the Supabase SQL Editor.`,
+      500,
+    );
+  }
 
   const tenant = mapMasterDetailRpc(data, baseDomain(), dnsTarget());
   const finalSsl = options.mode === 'dns' ? tenant.deployment.sslStatus : sslStatus;
-  const finalDeployment = tenant.deployment.deploymentStatus;
 
   return {
     status: options.mode === 'ssl' ? finalSsl : dnsStatus,
     hostname,
     expectedTarget,
-    deploymentStatus: finalDeployment,
+    deploymentStatus: tenant.deployment.deploymentStatus,
     dnsStatus,
     sslStatus: finalSsl,
     message,

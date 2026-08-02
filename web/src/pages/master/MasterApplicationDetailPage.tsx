@@ -115,11 +115,15 @@ export function MasterApplicationDetailPage() {
       const result = await api.masterVerifyTenantDns(tenant.id);
       setVerifyMessage(result.message);
       const ok = result.dnsStatus === 'verified' || result.status === 'verified';
-      pushToast(ok ? 'DNS verified' : result.message || 'DNS not verified', ok ? 'success' : 'info');
-      if (!ok && result.message) setActionError(result.message);
+      pushToast(ok ? 'DNS verified' : 'DNS not verified yet', ok ? 'success' : 'info');
+      if (!ok) setActionError(result.message);
+      else setActionError(null);
       await detail.reload();
     } catch (err) {
-      setActionError(getFriendlyErrorMessage(err));
+      const msg = getFriendlyErrorMessage(err);
+      setActionError(msg);
+      setVerifyMessage(msg);
+      pushToast(msg, 'error');
     } finally {
       setBusy(false);
     }

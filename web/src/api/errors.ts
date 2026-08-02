@@ -58,6 +58,7 @@ export function getFriendlyErrorMessage(error: unknown): string {
         'DEPLOYMENT_CONFLICT',
         'NETLIFY_AUTH_FAILED',
         'NETLIFY_SITE_NOT_FOUND',
+        'INTERNAL_ERROR',
       ].includes(error.code)
     ) {
       return error.message;

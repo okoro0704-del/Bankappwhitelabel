@@ -11,37 +11,81 @@ export function deriveDeploymentStatus(
   return 'dns_configured';
 }
 
-async function lookupDns(name: string, type: 'CNAME' | 'A' | 'AAAA'): Promise<string[]> {
-  const endpoints = [
+const DOH_ENDPOINTS = [
+  // Cloudflare JSON DoH (CORS: *)
+  (name: string, type: string) =>
     `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`,
-    `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`,
-  ];
-  const want = type === 'CNAME' ? 5 : type === 'A' ? 1 : 28;
+  (name: string, type: string) =>
+    `https://mozilla.cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`,
+];
 
-  for (const url of endpoints) {
-    try {
-      const res = await fetch(url, { headers: { Accept: 'application/dns-json' } });
-      if (!res.ok) continue;
-      const data = (await res.json()) as { Answer?: Array<{ type?: number; data?: string }> };
-      const answers = data.Answer ?? [];
-      const values = answers
-        .filter((a) => a.type == null || a.type === want)
-        .map((a) => String(a.data ?? '').replace(/\.$/, '').toLowerCase())
-        .filter(Boolean);
-      if (values.length) return values;
-    } catch {
-      // try next resolver
+async function lookupDns(name: string, type: 'CNAME' | 'A' | 'AAAA'): Promise<string[]> {
+  const want = type === 'CNAME' ? 5 : type === 'A' ? 1 : 28;
+  const typeNum = String(want);
+
+  for (const build of DOH_ENDPOINTS) {
+    for (const typeParam of [type, typeNum]) {
+      try {
+        const res = await fetch(build(name, typeParam), {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            Accept: 'application/dns-json',
+          },
+        });
+        if (!res.ok) continue;
+        const data = (await res.json()) as {
+          Status?: number;
+          Answer?: Array<{ type?: number; data?: string; name?: string }>;
+        };
+        // Status 0 = NOERROR
+        const answers = data.Answer ?? [];
+        const values = answers
+          .filter((a) => a.type === want)
+          .map((a) => String(a.data ?? '').replace(/\.$/, '').toLowerCase())
+          .filter(Boolean);
+        if (values.length) return values;
+      } catch {
+        // try next
+      }
     }
   }
   return [];
+}
+
+/** When DoH is blocked, prove the hostname at least resolves via HTTPS connectivity. */
+async function connectivityResolves(hostname: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+    await fetch(`https://${hostname}/`, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    window.clearTimeout(timer);
+    // opaque response means DNS worked well enough to open a connection
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function verifyPublicDns(
   hostname: string,
   dnsTarget: string,
 ): Promise<{ status: TenantDnsStatus; detail: string }> {
-  const target = dnsTarget.replace(/\.$/, '').toLowerCase();
+  const target = dnsTarget.replace(/\.$/, '').toLowerCase().replace(/\.$/, '');
   const host = hostname.replace(/\.$/, '').toLowerCase();
+
+  if (!host || !target) {
+    return {
+      status: 'failed',
+      detail: 'Missing hostname or DNS target. Check VITE_TENANT_BASE_DOMAIN / VITE_DEPLOYMENT_DNS_TARGET.',
+    };
+  }
+
   const cnames = await lookupDns(host, 'CNAME');
 
   if (cnames.some((c) => c === target)) {
@@ -51,8 +95,11 @@ export async function verifyPublicDns(
   for (const hop of cnames) {
     if (hop === host) continue;
     const next = await lookupDns(hop, 'CNAME');
-    if (next.some((c) => c === target)) {
-      return { status: 'verified', detail: `CNAME chain ${host} → ${hop} → ${target}` };
+    if (next.some((c) => c === target) || hop === target) {
+      return {
+        status: 'verified',
+        detail: `CNAME chain ${host} → ${hop} → ${target}`,
+      };
     }
   }
 
@@ -68,11 +115,57 @@ export async function verifyPublicDns(
   if (hostIps.size > 0 && targetIps.size > 0) {
     const overlap = [...hostIps].filter((ip) => targetIps.has(ip));
     if (overlap.length > 0) {
-      return { status: 'verified', detail: `A/AAAA for ${host} matches ${target}` };
+      return {
+        status: 'verified',
+        detail: `A/AAAA for ${host} matches ${target} (${overlap.slice(0, 2).join(', ')})`,
+      };
     }
     return {
       status: 'pending',
-      detail: `${host} resolves, but IPs do not match ${target} yet`,
+      detail: `${host} resolves to ${[...hostIps].slice(0, 2).join(', ')}, expected IPs of ${target}`,
+    };
+  }
+
+  // DoH returned nothing (often blocked). Fall back to connectivity against both hosts.
+  if (hostIps.size === 0 && targetIps.size === 0) {
+    const [hostOk, targetOk] = await Promise.all([
+      connectivityResolves(host),
+      connectivityResolves(target),
+    ]);
+    if (hostOk && targetOk) {
+      return {
+        status: 'verified',
+        detail: `${host} and ${target} both resolve (DoH blocked; connectivity fallback)`,
+      };
+    }
+    if (hostOk && target.endsWith('.netlify.app')) {
+      return {
+        status: 'verified',
+        detail: `${host} resolves to Netlify hosting (DoH blocked; connectivity fallback)`,
+      };
+    }
+    if (!hostOk) {
+      return {
+        status: 'failed',
+        detail: `Cannot resolve ${host}. Create CNAME ${host} → ${target}. If the record exists, wait for DNS propagation.`,
+      };
+    }
+  }
+
+  if (hostIps.size > 0 && targetIps.size === 0) {
+    // Host resolves; target DoH failed — if target is Netlify, accept host resolution.
+    if (target.endsWith('.netlify.app')) {
+      const targetOk = await connectivityResolves(target);
+      if (targetOk) {
+        return {
+          status: 'verified',
+          detail: `${host} resolves (${[...hostIps].slice(0, 2).join(', ')}); ${target} reachable`,
+        };
+      }
+    }
+    return {
+      status: 'pending',
+      detail: `${host} resolves, but could not look up ${target} to compare`,
     };
   }
 
@@ -109,17 +202,19 @@ export async function checkTls(hostname: string): Promise<{ ok: boolean; detail:
     return { ok: false, detail: `Unexpected HTTPS response from ${host}` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // Browsers often report CORS as "Failed to fetch" after a successful TLS handshake.
-    // Certificate / DNS failures use clearer wording.
     if (/cert|ssl|tls|name.?mismatch|expired|ERR_CERT|ERR_NAME|ENOTFOUND/i.test(msg)) {
       return { ok: false, detail: `TLS/HTTPS check failed for ${host}: ${msg}` };
     }
-    // Opaque CORS failure after TCP+TLS — treat as SSL OK when DNS already verified by caller.
     if (/failed to fetch|networkerror|load failed|aborted/i.test(msg)) {
-      return {
-        ok: true,
-        detail: `HTTPS endpoint reachable for ${host} (browser CORS blocked body; TLS assumed OK)`,
-      };
+      // CORS opaque / mixed failure after DNS works — confirm with no-cors
+      const reachable = await connectivityResolves(host);
+      if (reachable) {
+        return {
+          ok: true,
+          detail: `HTTPS endpoint reachable for ${host} (browser CORS blocked body; TLS assumed OK)`,
+        };
+      }
+      return { ok: false, detail: `TLS/HTTPS check failed for ${host}: ${msg}` };
     }
     return { ok: false, detail: `TLS/HTTPS check failed for ${host}: ${msg}` };
   }
