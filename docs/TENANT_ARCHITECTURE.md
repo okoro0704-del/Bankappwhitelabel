@@ -12,7 +12,7 @@ This document describes the white-label multi-tenant architecture.
 ## High-level model
 
 ```text
-MASTER APPLICATION (Master Admins)
+WEB FINANCE (Master Admins / platform console)
         │
         ├── Tenant / Application A  (branded instance)
         ├── Tenant / Application B
@@ -22,7 +22,7 @@ MASTER APPLICATION (Master Admins)
 
 Each tenant is one independently branded application instance that reuses the existing banking application functionality.
 
-The **Master Admin application** creates and manages tenants. It is **not** the per-tenant admin dashboard.
+**Web Finance** (`/master`) is the platform console: Master Admins create and manage tenants. It is **not** the per-tenant admin dashboard.
 
 ---
 

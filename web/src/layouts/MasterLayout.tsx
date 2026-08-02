@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { WEB_FINANCE_NAME, WEB_FINANCE_TAGLINE } from '../master/brand';
 import { fullName } from '../utils/format';
 
 const MASTER_NAV = [
@@ -16,7 +17,7 @@ export function MasterLayout() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = 'Platform · Master Admin';
+    document.title = `${WEB_FINANCE_NAME} · Console`;
   }, []);
 
   useEffect(() => {
@@ -27,21 +28,21 @@ export function MasterLayout() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  const name = appUser ? fullName(appUser.firstName, appUser.lastName) : 'Master Admin';
+  const name = appUser ? fullName(appUser.firstName, appUser.lastName) : WEB_FINANCE_NAME;
   const initials = appUser
     ? `${appUser.firstName[0] ?? ''}${appUser.lastName[0] ?? ''}`.toUpperCase()
-    : 'M';
+    : 'WF';
 
   return (
     <div className="shell master-shell">
-      <aside className="shell-sidebar master-sidebar" aria-label="Master platform">
+      <aside className="shell-sidebar master-sidebar" aria-label={WEB_FINANCE_NAME}>
         <div className="shell-brand">
           <div className="shell-brand-mark master-brand-mark" aria-hidden>
-            P
+            W
           </div>
           <div>
-            <div className="shell-brand-name">Platform</div>
-            <div className="shell-brand-tag">Master Admin</div>
+            <div className="shell-brand-name">{WEB_FINANCE_NAME}</div>
+            <div className="shell-brand-tag">{WEB_FINANCE_TAGLINE}</div>
           </div>
         </div>
         <nav>
@@ -61,7 +62,7 @@ export function MasterLayout() {
         </nav>
         <div className="master-sidebar-foot">
           <p className="muted" style={{ fontSize: '0.8rem' }}>
-            Configuration only — not a banking console.
+            Manage applications, branding, and deployment.
           </p>
         </div>
       </aside>
@@ -77,7 +78,7 @@ export function MasterLayout() {
             >
               Menu
             </button>
-            <span className="badge badge-info">Master</span>
+            <span className="badge badge-info">{WEB_FINANCE_NAME}</span>
           </div>
 
           <div className="profile-menu" ref={menuRef}>
@@ -108,7 +109,7 @@ export function MasterLayout() {
         </header>
 
         {mobileOpen ? (
-          <nav className="mobile-nav" aria-label="Master mobile">
+          <nav className="mobile-nav" aria-label={`${WEB_FINANCE_NAME} mobile`}>
             {MASTER_NAV.map((item) => (
               <NavLink
                 key={item.to}
@@ -120,7 +121,11 @@ export function MasterLayout() {
                 {item.label}
               </NavLink>
             ))}
-            <Link className="nav-link" to="/master/applications/new" onClick={() => setMobileOpen(false)}>
+            <Link
+              className="nav-link"
+              to="/master/applications/new"
+              onClick={() => setMobileOpen(false)}
+            >
               New application
             </Link>
           </nav>

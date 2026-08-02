@@ -127,7 +127,7 @@ insert into public.tenant_branding (
   '#1F6F56',
   '#C4A35A',
   'Welcome to Northline',
-  'Sign in to manage your fictional account.',
+  'Sign in to manage your account.',
   'support@northline.example',
   null
 );

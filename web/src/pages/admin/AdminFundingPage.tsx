@@ -104,7 +104,7 @@ export function AdminFundingPage() {
       <div className="page-header">
         <div>
           <h1>Wallet funding</h1>
-          <p className="page-subtitle">Credits fictional wallets via the admin API</p>
+          <p className="page-subtitle">Credit wallets for accounts in this application</p>
         </div>
       </div>
 

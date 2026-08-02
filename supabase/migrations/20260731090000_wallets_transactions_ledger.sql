@@ -133,7 +133,7 @@ before insert or update or delete on public.transactions
 for each row
 execute function public.protect_transaction_privileges();
 
--- Atomic fictional wallet funding with idempotency.
+-- Atomic wallet funding with idempotency.
 -- Returns existing completed funding row when the same idempotency_key is reused.
 create or replace function public.fund_wallet_atomic(
   p_wallet_id uuid,

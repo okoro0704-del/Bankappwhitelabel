@@ -18,7 +18,7 @@ Browser (Netlify)
 3. Set Edge secrets: `VERIFICATION_CODE_PEPPER`, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, optional `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID`
 4. Copy `web/.env.example` → `web/.env` with `VITE_SUPABASE_*` and `VITE_TENANT_BASE_DOMAIN`
 5. `npm --prefix web install && npm run dev`
-6. Promote a Master Admin: insert into `master_admins` (see `supabase/seed_master_admin.sql`)
+6. Promote a Web Finance (Master) Admin: insert into `master_admins` (see `supabase/seed_master_admin.sql`)
 
 ## Netlify
 

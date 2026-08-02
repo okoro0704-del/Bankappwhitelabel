@@ -150,7 +150,7 @@ export function AdminCreateUserPage() {
                 onChange={(e) => update('accountNumber', e.target.value)}
               />
             </Field>
-            <Field label="Initial balance" htmlFor="initialBalance" hint="Fictional currency amount">
+            <Field label="Initial balance" htmlFor="initialBalance" hint="Opening wallet amount">
               <Input
                 id="initialBalance"
                 type="number"

@@ -218,7 +218,6 @@ export function UserDashboardPage() {
       </div>
 
       <Alert tone="info">
-        This is a fictional banking demo. Balances and transfers do not move real money.
       </Alert>
 
       <TransactionDetailModal

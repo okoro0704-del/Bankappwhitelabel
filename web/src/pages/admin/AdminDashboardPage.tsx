@@ -182,7 +182,7 @@ export function AdminDashboardPage() {
         </Link>
         <Link className="quick-action" to="/admin/funding">
           <strong>Wallet funding</strong>
-          <span className="muted">Credit fictional wallets</span>
+          <span className="muted">Credit wallets</span>
         </Link>
         <Link className="quick-action" to="/admin/transfers">
           <strong>Transfers</strong>

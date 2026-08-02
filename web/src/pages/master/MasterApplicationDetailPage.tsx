@@ -295,8 +295,8 @@ export function MasterApplicationDetailPage() {
       <div className="card card-pad stack">
         <h2 style={{ fontSize: '1.05rem' }}>Deployment</h2>
         <Alert tone="warning" title="Shared Netlify frontend">
-          Provisioning associates this hostname with the shared white-label Netlify site and
-          configures Netlify DNS. Status values reflect verification — never assumed success.
+          Provisioning associates this hostname with the shared Netlify site and configures
+          Netlify DNS. Status values reflect verification — never assumed success.
           Provider: <strong>{deployment.provider}</strong>
         </Alert>
         <dl className="detail-list">

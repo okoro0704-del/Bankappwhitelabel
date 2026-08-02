@@ -85,7 +85,7 @@ export function MasterApplicationsPage() {
       <div className="page-header">
         <div>
           <h1>Applications</h1>
-          <p className="page-subtitle">White-label tenant applications managed by Master Admin.</p>
+          <p className="page-subtitle">Applications managed in Web Finance.</p>
         </div>
         <Link className="btn btn-primary" to="/master/applications/new">
           New application

@@ -20,9 +20,9 @@ export function MasterDashboardPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Master dashboard</h1>
+          <h1>Dashboard</h1>
           <p className="page-subtitle">
-            Platform overview from the Master API. Totals use the returned application list.
+            Overview of applications managed in Web Finance.
           </p>
         </div>
         <div className="row">

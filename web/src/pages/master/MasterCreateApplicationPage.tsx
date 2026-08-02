@@ -102,8 +102,8 @@ export function MasterCreateApplicationPage() {
         <div>
           <h1>Create application</h1>
           <p className="page-subtitle">
-            Creates a tenant as inactive via the Master API. Configure branding, then activate when
-            ready. DNS and hosting are not automated in this phase.
+            Creates an inactive application. Configure branding and deployment, then activate when
+            ready.
           </p>
         </div>
         <Link className="btn btn-secondary" to="/master/applications">

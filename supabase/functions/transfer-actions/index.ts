@@ -66,7 +66,7 @@ async function resolveOwnedTransfer(admin: Admin, actor: Actor, transferId: stri
 }
 
 async function upsertStageCode(admin: Admin, transferId: string, stage: number) {
-  const pepper = Deno.env.get('VERIFICATION_CODE_PEPPER') ?? 'fictional-bank-dev-pepper';
+  const pepper = Deno.env.get('VERIFICATION_CODE_PEPPER') ?? 'web-finance-dev-pepper';
   const code = generateSixDigitCode();
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
   const codeHash = await hashVerificationCode(code, transferId, stage, pepper);
@@ -355,7 +355,7 @@ async function submitVerification(admin: Admin, actor: Actor, transferId: string
     });
   }
 
-  const pepper = Deno.env.get('VERIFICATION_CODE_PEPPER') ?? 'fictional-bank-dev-pepper';
+  const pepper = Deno.env.get('VERIFICATION_CODE_PEPPER') ?? 'web-finance-dev-pepper';
   const actual = await hashVerificationCode(code.trim(), transferId, stage, pepper);
   if (actual !== codeRow.code_hash) {
     await admin

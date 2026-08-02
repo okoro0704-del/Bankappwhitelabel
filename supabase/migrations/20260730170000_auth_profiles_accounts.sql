@@ -63,7 +63,7 @@ before update on public.accounts
 for each row
 execute function public.set_updated_at();
 
--- Cryptographically random 10-digit fictional account numbers (server/DB only).
+-- Cryptographically random 10-digit account numbers (server/DB only).
 create or replace function public.generate_account_number()
 returns text
 language plpgsql

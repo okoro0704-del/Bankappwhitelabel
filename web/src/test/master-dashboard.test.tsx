@@ -205,7 +205,7 @@ describe('Master Admin authentication', () => {
       '/master',
     );
 
-    expect(await screen.findByText('Master access required')).toBeInTheDocument();
+    expect(await screen.findByText('Web Finance access required')).toBeInTheDocument();
     expect(screen.queryByText('Master home')).not.toBeInTheDocument();
   });
 

@@ -31,13 +31,13 @@ export function MasterProtectedRoute() {
     return (
       <div className="auth-panel">
         <div className="auth-card master-unauthorized">
-          <h2>Master access required</h2>
+          <h2>Web Finance access required</h2>
           <p className="page-subtitle">
-            Your account is signed in, but it is not authorized as a Master Admin.
+            Your account is signed in, but it is not authorized for the Web Finance console.
           </p>
           <Alert tone="error" title="Unauthorized">
-            Master Admin privileges are granted by the platform and enforced by the API. They
-            cannot be enabled from this browser.
+            Console access is granted by the platform operator and enforced server-side. It cannot
+            be enabled from this browser.
           </Alert>
           <div className="row" style={{ marginTop: '1rem' }}>
             <Button

@@ -340,7 +340,7 @@ begin
     locked_transfer.amount,
     locked_transfer.reference,
     'transfer-debit:' || locked_transfer.id::text,
-    coalesce(locked_transfer.description, 'External fictional transfer'),
+    coalesce(locked_transfer.description, 'External transfer'),
     locked_transfer.user_id,
     jsonb_build_object(
       'source', 'transfer',

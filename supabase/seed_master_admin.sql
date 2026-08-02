@@ -1,4 +1,4 @@
--- One-shot: promote an existing auth user to Master Admin.
+-- One-shot: promote an existing auth user to Web Finance (Master Admin) console access.
 -- Replace the UUID with auth.users.id from the Supabase Auth dashboard.
 --
 -- insert into public.master_admins (user_id, created_by)
