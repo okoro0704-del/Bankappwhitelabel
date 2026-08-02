@@ -1,14 +1,26 @@
-import { Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { Alert, ErrorState, Skeleton } from '../components/ui/Feedback';
 import { Button } from '../components/ui/Button';
 import { useTenant } from './TenantProvider';
+import { isPlatformBaseHost } from './resolve';
+
+function platformBaseDomain(): string {
+  return (import.meta.env.VITE_TENANT_BASE_DOMAIN ?? '').trim().toLowerCase();
+}
 
 /**
  * Gates customer-facing routes on a successfully resolved, active tenant config.
  * Master Admin routes must not use this gate.
+ * Platform apex (webfinance.app / www) redirects into the Web Finance console.
  */
 export function CustomerTenantGate() {
   const { state, reload } = useTenant();
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  const onPlatformHost = isPlatformBaseHost(host, platformBaseDomain());
+
+  if (onPlatformHost) {
+    return <Navigate to="/master/login" replace />;
+  }
 
   if (state.status === 'loading') {
     return (

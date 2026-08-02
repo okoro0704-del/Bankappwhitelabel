@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractTenantLabelFromHostname } from '../tenant/resolve';
+import { extractTenantLabelFromHostname, isPlatformBaseHost } from '../tenant/resolve';
 import {
   DEFAULT_NORTHLINE_CONFIGURATION,
   NORTHLINE_TENANT_ID,
@@ -17,6 +17,13 @@ describe('tenant hostname helpers', () => {
     expect(extractTenantLabelFromHostname('localhost')).toBeNull();
     expect(extractTenantLabelFromHostname('localhost:5173')).toBeNull();
     expect(extractTenantLabelFromHostname('127.0.0.1')).toBeNull();
+  });
+
+  it('detects Web Finance platform apex hosts', () => {
+    expect(isPlatformBaseHost('webfinance.app', 'webfinance.app')).toBe(true);
+    expect(isPlatformBaseHost('www.webfinance.app', 'webfinance.app')).toBe(true);
+    expect(isPlatformBaseHost('northline.webfinance.app', 'webfinance.app')).toBe(false);
+    expect(isPlatformBaseHost('webfinance.app', 'app.example.com')).toBe(false);
   });
 });
 

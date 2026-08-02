@@ -45,3 +45,11 @@ export const extractTenantLabelUnderBaseDomain = (
   if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) return null;
   return label;
 };
+
+/** Apex / www of the tenant base domain — Web Finance platform host, not a tenant app. */
+export const isPlatformBaseHost = (hostname: string, baseDomain: string): boolean => {
+  const host = hostname.trim().toLowerCase().replace(/:\d+$/, '');
+  const base = baseDomain.trim().toLowerCase().replace(/:\d+$/, '');
+  if (!host || !base) return false;
+  return host === base || host === `www.${base}`;
+};
