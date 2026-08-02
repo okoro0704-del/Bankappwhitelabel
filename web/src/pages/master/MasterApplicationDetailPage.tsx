@@ -78,7 +78,9 @@ export function MasterApplicationDetailPage() {
       pushToast(success, 'success');
       await detail.reload();
     } catch (err) {
-      setActionError(getFriendlyErrorMessage(err));
+      const message = getFriendlyErrorMessage(err);
+      setActionError(message);
+      pushToast(message, 'error');
     } finally {
       setBusy(false);
       setConfirmDeactivate(false);
