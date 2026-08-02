@@ -1,15 +1,22 @@
 import { corsHeaders, errorResponse, jsonResponse } from '../_shared/http.ts';
 import { adminClient, loadActorProfile, requireUser } from '../_shared/supabase.ts';
 
+type DnsSslStatus = 'not_configured' | 'pending' | 'verified' | 'failed';
+
 function deriveDeploymentStatus(dns: string, ssl: string): string {
   if (dns === 'not_configured') return 'not_configured';
   if (dns === 'pending' || dns === 'failed') return 'waiting_for_dns';
   if (ssl === 'verified') return 'ready';
-  if (ssl === 'pending') return 'ssl_pending';
+  if (ssl === 'pending' || ssl === 'failed') return 'ssl_pending';
   return 'dns_configured';
 }
 
-function buildDeployment(tenant: Record<string, unknown>, baseDomain: string, dnsTarget: string, provider: string) {
+function buildDeployment(
+  tenant: Record<string, unknown>,
+  baseDomain: string,
+  dnsTarget: string,
+  provider: string,
+) {
   const subdomain = String(tenant.subdomain);
   const hostname = `${subdomain}.${baseDomain}`;
   return {
@@ -78,6 +85,16 @@ function toDetail(
   };
 }
 
+function requireDeployEnv(baseDomain: string, dnsTarget: string): string | null {
+  if (!baseDomain) {
+    return 'Edge secret TENANT_BASE_DOMAIN is not configured';
+  }
+  if (!dnsTarget) {
+    return 'Edge secret DEPLOYMENT_DNS_TARGET is not configured';
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -94,8 +111,9 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = String(body.action ?? '');
     const tenantId = String(body.tenantId ?? '');
-    const baseDomain = (Deno.env.get('TENANT_BASE_DOMAIN') ?? 'app.example.com').toLowerCase();
-    const dnsTarget = (Deno.env.get('DEPLOYMENT_DNS_TARGET') ?? 'edgeserver.example.com')
+    const baseDomain = (Deno.env.get('TENANT_BASE_DOMAIN') ?? '').trim().toLowerCase().replace(/\.$/, '');
+    const dnsTarget = (Deno.env.get('DEPLOYMENT_DNS_TARGET') ?? '')
+      .trim()
       .toLowerCase()
       .replace(/\.$/, '');
     const token = Deno.env.get('NETLIFY_AUTH_TOKEN')?.trim() ?? '';
@@ -106,50 +124,100 @@ Deno.serve(async (req) => {
       return errorResponse('VALIDATION_ERROR', 'tenantId is required', 400);
     }
 
+    const envError = requireDeployEnv(baseDomain, dnsTarget);
+    // Allow getDeployment even with missing env so the Master UI can still load.
     if (action === 'getDeployment') {
-      const { tenant, branding } = await loadTenantBundle(admin, tenantId);
+      const { tenant } = await loadTenantBundle(admin, tenantId);
       return jsonResponse({
-        data: buildDeployment(tenant, baseDomain, dnsTarget, provider),
+        data: buildDeployment(
+          tenant,
+          baseDomain || 'app.example.com',
+          dnsTarget || 'edgeserver.example.com',
+          provider,
+        ),
       });
     }
 
     if (action === 'verifyDns' || action === 'verifySsl' || action === 'provision') {
+      if (envError) {
+        return errorResponse('DEPLOYMENT_NOT_CONFIGURED', envError, 400);
+      }
+
       const { tenant, branding } = await loadTenantBundle(admin, tenantId);
-      const hostname = `${tenant.subdomain}.${baseDomain}`;
+      const hostname = `${String(tenant.subdomain).toLowerCase()}.${baseDomain}`;
 
       if (action === 'provision' && provider !== 'netlify') {
         return errorResponse(
           'DEPLOYMENT_NOT_CONFIGURED',
-          'Netlify credentials are not configured on the server',
+          'Netlify credentials are not configured (NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID)',
           400,
         );
       }
 
-      let dnsStatus = String(tenant.dns_status);
-      let sslStatus = String(tenant.ssl_status);
+      let dnsStatus = String(tenant.dns_status) as DnsSslStatus;
+      let sslStatus = String(tenant.ssl_status) as DnsSslStatus;
       let lastError: string | null = null;
+      let resultCode: string | null = null;
+      let checkDetail = '';
 
-      if (provider === 'netlify' && (action === 'provision' || action === 'verifyDns')) {
+      // Provisioning writes: alias + DNS + SSL kickoff. Verify DNS/SSL are public checks only.
+      if (provider === 'netlify' && action === 'provision') {
         try {
           await ensureNetlifyAlias(token, siteId, hostname);
-          if (action === 'provision') {
-            await ensureNetlifyDnsCname(token, tenant.subdomain, dnsTarget, baseDomain);
-          }
+          await ensureNetlifyDnsCname(token, String(tenant.subdomain), dnsTarget, baseDomain);
+          await ensureNetlifySsl(token, siteId);
         } catch (e) {
-          lastError = e instanceof Error ? e.message : 'Provisioning failed';
+          const err = e as { code?: string; message?: string };
+          lastError = err.message ?? 'Provisioning failed';
+          resultCode = err.code ?? 'DNS_PROVISIONING_FAILED';
           dnsStatus = 'failed';
         }
       }
 
-      const records = await lookupCname(hostname);
-      const matched = records.some((r) => r.replace(/\.$/, '').toLowerCase() === dnsTarget);
+      if (provider === 'netlify' && action === 'verifySsl' && !lastError) {
+        try {
+          await ensureNetlifyAlias(token, siteId, hostname);
+          await ensureNetlifySsl(token, siteId);
+        } catch (e) {
+          // Alias/SSL kickoff failures should not block the public TLS check; record hint only.
+          const msg = e instanceof Error ? e.message : 'SSL provisioning kickoff failed';
+          checkDetail = msg;
+        }
+      }
+
+      const dns = await verifyPublicDns(hostname, dnsTarget);
       if (!lastError) {
-        dnsStatus = matched ? 'verified' : records.length ? 'pending' : 'failed';
+        dnsStatus = dns.status;
+        checkDetail = dns.detail;
+        if (dnsStatus === 'failed') {
+          resultCode = 'DNS_NOT_READY';
+          lastError = dns.detail;
+        } else if (dnsStatus === 'pending') {
+          resultCode = 'DNS_NOT_READY';
+        }
       }
 
       if (action === 'verifySsl' || (action === 'provision' && dnsStatus === 'verified')) {
-        const tlsOk = await checkTls(hostname);
-        sslStatus = tlsOk ? 'verified' : dnsStatus === 'verified' ? 'pending' : 'not_configured';
+        if (dnsStatus !== 'verified') {
+          sslStatus = 'not_configured';
+          resultCode = resultCode ?? 'DNS_NOT_READY';
+          lastError = lastError ?? 'DNS must verify before SSL can be checked';
+          checkDetail = lastError;
+        } else {
+          const tls = await checkTls(hostname);
+          sslStatus = tls.ok ? 'verified' : 'pending';
+          checkDetail = tls.detail;
+          if (!tls.ok) {
+            resultCode = 'SSL_NOT_READY';
+            lastError = tls.detail;
+          } else {
+            resultCode = null;
+            lastError = null;
+          }
+        }
+      } else if (action === 'verifyDns' && dnsStatus === 'verified') {
+        resultCode = null;
+        lastError = null;
       }
 
       const deploymentStatus = deriveDeploymentStatus(dnsStatus, sslStatus);
@@ -161,7 +229,7 @@ Deno.serve(async (req) => {
           ssl_status: sslStatus,
           deployment_status: deploymentStatus,
           dns_checked_at: now,
-          dns_verified_at: dnsStatus === 'verified' ? now : tenant.dns_verified_at,
+          dns_verified_at: dnsStatus === 'verified' ? (tenant.dns_verified_at ?? now) : null,
           ssl_checked_at: action === 'verifySsl' || action === 'provision' ? now : tenant.ssl_checked_at,
           last_provisioned_at: action === 'provision' ? now : tenant.last_provisioned_at,
           last_provision_error: lastError,
@@ -175,6 +243,8 @@ Deno.serve(async (req) => {
       }
 
       const detail = toDetail(updated, branding, baseDomain, dnsTarget, provider);
+      const message = buildActionMessage(action, dnsStatus, sslStatus, lastError, checkDetail);
+
       return jsonResponse({
         data: {
           status: action === 'verifySsl' ? sslStatus : dnsStatus,
@@ -183,9 +253,10 @@ Deno.serve(async (req) => {
           deploymentStatus,
           dnsStatus,
           sslStatus,
-          message: lastError ?? (dnsStatus === 'verified' ? 'DNS verified' : 'DNS check complete'),
+          message,
           checkedAt: now,
-          code: lastError ? 'DNS_PROVISIONING_FAILED' : null,
+          code: resultCode,
+          detail: checkDetail,
           tenant: detail,
         },
       });
@@ -198,15 +269,40 @@ Deno.serve(async (req) => {
   }
 });
 
+function buildActionMessage(
+  action: string,
+  dnsStatus: string,
+  sslStatus: string,
+  lastError: string | null,
+  detail: string,
+): string {
+  if (lastError && (dnsStatus === 'failed' || (action === 'verifySsl' && sslStatus !== 'verified'))) {
+    return lastError;
+  }
+  if (action === 'verifySsl') {
+    if (sslStatus === 'verified') return 'SSL verified for hostname';
+    return detail || 'SSL not ready yet. Wait for certificate issuance, then retry.';
+  }
+  if (action === 'provision') {
+    if (dnsStatus === 'verified' && sslStatus === 'verified') return 'Provisioning complete — DNS and SSL verified';
+    if (dnsStatus === 'verified') return 'Hostname provisioned. DNS verified; SSL still pending.';
+    return detail || 'Provisioning ran. DNS is not verified yet.';
+  }
+  if (dnsStatus === 'verified') return 'DNS verified';
+  return detail || 'DNS check complete';
+}
+
 async function ensureNetlifyAlias(token: string, siteId: string, hostname: string) {
   const site = await netlifyFetch(token, `/sites/${siteId}`);
-  const aliases: string[] = site.domain_aliases ?? [];
-  if (!aliases.includes(hostname)) {
-    await netlifyFetch(token, `/sites/${siteId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ domain_aliases: [...aliases, hostname] }),
-    });
-  }
+  const aliases: string[] = Array.isArray(site.domain_aliases) ? site.domain_aliases : [];
+  const customDomain = String(site.custom_domain ?? '').toLowerCase();
+  if (aliases.map((a) => a.toLowerCase()).includes(hostname.toLowerCase())) return;
+  if (customDomain === hostname.toLowerCase()) return;
+
+  await netlifyFetch(token, `/sites/${siteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ domain_aliases: [...aliases, hostname] }),
+  });
 }
 
 async function ensureNetlifyDnsCname(
@@ -215,29 +311,69 @@ async function ensureNetlifyDnsCname(
   target: string,
   baseDomain: string,
 ) {
+  const zoneId = Deno.env.get('NETLIFY_DNS_ZONE_ID')?.trim();
   const zones = await netlifyFetch(token, '/dns_zones');
-  const zone = (zones as Array<{ id: string; name: string }>).find(
-    (z) => z.name.replace(/\.$/, '').toLowerCase() === baseDomain,
-  );
+  const zoneList = zones as Array<{ id: string; name: string }>;
+  const zone =
+    (zoneId ? zoneList.find((z) => z.id === zoneId) : null) ??
+    zoneList.find((z) => z.name.replace(/\.$/, '').toLowerCase() === baseDomain);
   if (!zone) {
-    throw new Error('Netlify DNS zone for TENANT_BASE_DOMAIN not found');
+    throw Object.assign(new Error(`Netlify DNS zone for ${baseDomain} not found`), {
+      code: 'DEPLOYMENT_NOT_CONFIGURED',
+      status: 400,
+    });
   }
+
+  const fqdn = `${label}.${baseDomain}`.toLowerCase();
   const records = await netlifyFetch(token, `/dns_zones/${zone.id}/dns_records`);
-  const existing = (records as Array<{ hostname: string; type: string; value: string }>).find(
-    (r) =>
-      r.type === 'CNAME' &&
-      r.hostname.replace(/\.$/, '').toLowerCase() === `${label}.${baseDomain}`,
+  const existing = (records as Array<{ id?: string; hostname?: string; type?: string; value?: string }>).find(
+    (r) => {
+      const host = normalizeRecordHostname(r.hostname, baseDomain);
+      const type = String(r.type ?? '').toUpperCase();
+      return host === fqdn && (type === 'CNAME' || type === 'NETLIFY');
+    },
   );
+
   if (existing) {
-    if (existing.value.replace(/\.$/, '').toLowerCase() !== target) {
-      throw Object.assign(new Error('Conflicting DNS record'), { code: 'DEPLOYMENT_CONFLICT', status: 409 });
+    const value = String(existing.value ?? '')
+      .replace(/\.$/, '')
+      .toLowerCase();
+    const type = String(existing.type ?? '').toUpperCase();
+    if (type === 'CNAME' && value && value !== target) {
+      throw Object.assign(
+        new Error(`Conflicting DNS record: ${fqdn} → ${value} (expected ${target})`),
+        { code: 'DEPLOYMENT_CONFLICT', status: 409 },
+      );
     }
     return;
   }
+
   await netlifyFetch(token, `/dns_zones/${zone.id}/dns_records`, {
     method: 'POST',
     body: JSON.stringify({ type: 'CNAME', hostname: label, value: target, ttl: 3600 }),
   });
+}
+
+async function ensureNetlifySsl(token: string, siteId: string) {
+  try {
+    await netlifyFetch(token, `/sites/${siteId}/ssl`, { method: 'POST' });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Already issued / renew-required / DNS not ready yet — verification will report status.
+    if (/already|exist|pending|certificate parameter|bad dns|no custom domain|422/i.test(msg)) {
+      return;
+    }
+    throw e;
+  }
+}
+
+function normalizeRecordHostname(hostname: string | undefined, baseDomain: string): string {
+  const raw = String(hostname ?? '')
+    .replace(/\.$/, '')
+    .toLowerCase();
+  if (!raw) return '';
+  if (raw.includes('.')) return raw;
+  return `${raw}.${baseDomain}`;
 }
 
 async function netlifyFetch(token: string, path: string, init: RequestInit = {}) {
@@ -250,37 +386,163 @@ async function netlifyFetch(token: string, path: string, init: RequestInit = {})
     },
   });
   if (res.status === 401 || res.status === 403) {
-    throw Object.assign(new Error('Netlify authentication failed'), { code: 'NETLIFY_AUTH_FAILED', status: 401 });
+    throw Object.assign(new Error('Netlify authentication failed'), {
+      code: 'NETLIFY_AUTH_FAILED',
+      status: 401,
+    });
   }
   if (res.status === 404) {
-    throw Object.assign(new Error('Netlify resource not found'), { code: 'NETLIFY_SITE_NOT_FOUND', status: 404 });
+    throw Object.assign(new Error(`Netlify resource not found: ${path}`), {
+      code: 'NETLIFY_SITE_NOT_FOUND',
+      status: 404,
+    });
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `Netlify error ${res.status}`);
+    throw Object.assign(new Error(text || `Netlify error ${res.status}`), {
+      code: 'DNS_PROVISIONING_FAILED',
+      status: res.status,
+    });
   }
   if (res.status === 204) return null;
-  return res.json();
-}
-
-async function lookupCname(hostname: string): Promise<string[]> {
+  const text = await res.text();
+  if (!text) return null;
   try {
-    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=CNAME`, {
-      headers: { Accept: 'application/dns-json' },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.Answer ?? []).map((a: { data?: string }) => String(a.data ?? '').replace(/\.$/, ''));
+    return JSON.parse(text);
   } catch {
-    return [];
+    return text;
   }
 }
 
-async function checkTls(hostname: string): Promise<boolean> {
+async function lookupDns(name: string, type: 'CNAME' | 'A' | 'AAAA'): Promise<string[]> {
+  const endpoints = [
+    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`,
+    `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`,
+  ];
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/dns-json' } });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const answers = (data.Answer ?? []) as Array<{ type?: number; data?: string }>;
+      // CNAME=5, A=1, AAAA=28
+      const want = type === 'CNAME' ? 5 : type === 'A' ? 1 : 28;
+      const values = answers
+        .filter((a) => a.type == null || a.type === want)
+        .map((a) => String(a.data ?? '').replace(/\.$/, '').toLowerCase())
+        .filter(Boolean);
+      if (values.length) return values;
+    } catch {
+      // try next resolver
+    }
+  }
+  return [];
+}
+
+async function verifyPublicDns(
+  hostname: string,
+  dnsTarget: string,
+): Promise<{ status: DnsSslStatus; detail: string; records: string[] }> {
+  const target = dnsTarget.replace(/\.$/, '').toLowerCase();
+  const cnames = await lookupDns(hostname, 'CNAME');
+
+  if (cnames.some((c) => c === target)) {
+    return { status: 'verified', detail: `CNAME ${hostname} → ${target}`, records: cnames };
+  }
+
+  // One-hop CNAME chain (CDN / intermediate)
+  for (const hop of cnames) {
+    if (hop === hostname) continue;
+    const next = await lookupDns(hop, 'CNAME');
+    if (next.some((c) => c === target)) {
+      return {
+        status: 'verified',
+        detail: `CNAME chain ${hostname} → ${hop} → ${target}`,
+        records: cnames,
+      };
+    }
+  }
+
+  // Netlify DNS / ALIAS often flattens to A/AAAA — compare address sets with the target host.
+  const [hostA, hostAAAA, targetA, targetAAAA] = await Promise.all([
+    lookupDns(hostname, 'A'),
+    lookupDns(hostname, 'AAAA'),
+    lookupDns(target, 'A'),
+    lookupDns(target, 'AAAA'),
+  ]);
+  const hostIps = new Set([...hostA, ...hostAAAA]);
+  const targetIps = new Set([...targetA, ...targetAAAA]);
+  if (hostIps.size > 0 && targetIps.size > 0) {
+    const overlap = [...hostIps].filter((ip) => targetIps.has(ip));
+    if (overlap.length > 0) {
+      return {
+        status: 'verified',
+        detail: `A/AAAA for ${hostname} matches ${target}`,
+        records: [...hostIps],
+      };
+    }
+    return {
+      status: 'pending',
+      detail: `${hostname} resolves, but IPs do not match ${target} yet`,
+      records: [...hostIps],
+    };
+  }
+
+  if (cnames.length > 0) {
+    return {
+      status: 'pending',
+      detail: `CNAME is ${cnames.join(', ')} (expected ${target})`,
+      records: cnames,
+    };
+  }
+
+  return {
+    status: 'failed',
+    detail: `No DNS records found for ${hostname}. Create CNAME ${hostname} → ${target}`,
+    records: [],
+  };
+}
+
+async function checkTls(hostname: string): Promise<{ ok: boolean; detail: string }> {
+  // Prefer raw TLS handshake (validates certificate hostname in Deno).
   try {
-    const res = await fetch(`https://${hostname}/`, { method: 'HEAD', redirect: 'manual' });
-    return res.status > 0;
-  } catch {
-    return false;
+    // deno-lint-ignore no-explicit-any
+    const connectTls = (Deno as any).connectTls as
+      | ((args: { hostname: string; port: number }) => Promise<{ close: () => void }>)
+      | undefined;
+    if (typeof connectTls === 'function') {
+      const conn = await connectTls({ hostname, port: 443 });
+      try {
+        conn.close();
+      } catch {
+        // ignore close errors
+      }
+      return { ok: true, detail: `TLS handshake ok for ${hostname}` };
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Fall through to HTTPS fetch for more detail
+    if (/invalid|certificate|unknown|mismatch|expired/i.test(msg)) {
+      // still try fetch — some runtimes differ
+    }
+  }
+
+  try {
+    const res = await fetch(`https://${hostname}/`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { 'User-Agent': 'WebFinance-DeployCheck/1.0' },
+    });
+    // Any HTTP response means TCP+TLS succeeded for this hostname.
+    if (res.status > 0) {
+      return { ok: true, detail: `HTTPS ${res.status} from ${hostname}` };
+    }
+    return { ok: false, detail: `Unexpected HTTPS response from ${hostname}` };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      detail: `TLS/HTTPS check failed for ${hostname}: ${msg}`,
+    };
   }
 }

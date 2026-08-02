@@ -111,10 +111,9 @@ export function MasterApplicationDetailPage() {
     try {
       const result = await api.masterVerifyTenantDns(tenant.id);
       setVerifyMessage(result.message);
-      pushToast(
-        result.status === 'verified' ? 'DNS verification recorded' : 'DNS not verified',
-        result.status === 'verified' ? 'success' : 'info',
-      );
+      const ok = result.dnsStatus === 'verified' || result.status === 'verified';
+      pushToast(ok ? 'DNS verified' : result.message || 'DNS not verified', ok ? 'success' : 'info');
+      if (!ok && result.message) setActionError(result.message);
       await detail.reload();
     } catch (err) {
       setActionError(getFriendlyErrorMessage(err));
@@ -131,10 +130,13 @@ export function MasterApplicationDetailPage() {
     try {
       const result = await api.masterProvisionTenant(tenant.id);
       setVerifyMessage(result.message);
+      const failed = Boolean(result.code && result.dnsStatus === 'failed');
+      const ready = result.deploymentStatus === 'ready';
       pushToast(
-        retry ? 'Provisioning retried' : 'Provisioning started',
-        result.deploymentStatus === 'ready' ? 'success' : 'info',
+        result.message || (retry ? 'Provisioning retried' : 'Provisioning started'),
+        ready ? 'success' : failed ? 'error' : 'info',
       );
+      if (failed || result.code) setActionError(result.message);
       await detail.reload();
     } catch (err) {
       setActionError(getFriendlyErrorMessage(err));
@@ -152,10 +154,9 @@ export function MasterApplicationDetailPage() {
     try {
       const result = await api.masterVerifyTenantSsl(tenant.id);
       setVerifyMessage(result.message);
-      pushToast(
-        result.sslStatus === 'verified' ? 'SSL verified' : 'SSL not ready',
-        result.sslStatus === 'verified' ? 'success' : 'info',
-      );
+      const ok = result.sslStatus === 'verified';
+      pushToast(ok ? 'SSL verified' : result.message || 'SSL not ready', ok ? 'success' : 'info');
+      if (!ok && result.message) setActionError(result.message);
       await detail.reload();
     } catch (err) {
       setActionError(getFriendlyErrorMessage(err));
@@ -175,6 +176,10 @@ export function MasterApplicationDetailPage() {
       if (dns.dnsStatus === 'verified' || dns.status === 'verified') {
         const ssl = await api.masterVerifyTenantSsl(tenant.id);
         setVerifyMessage(ssl.message);
+        if (ssl.sslStatus !== 'verified') setActionError(ssl.message);
+        else setActionError(null);
+      } else {
+        setActionError(dns.message);
       }
       pushToast('Deployment status refreshed', 'info');
       await detail.reload();

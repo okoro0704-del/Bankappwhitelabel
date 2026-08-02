@@ -46,6 +46,22 @@ const FRIENDLY: Record<string, string> = {
 
 export function getFriendlyErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    // Prefer detailed server messages for deployment diagnostics.
+    if (
+      error.message &&
+      [
+        'DEPLOYMENT_NOT_CONFIGURED',
+        'DNS_NOT_READY',
+        'SSL_NOT_READY',
+        'DNS_PROVISIONING_FAILED',
+        'SSL_PROVISIONING_FAILED',
+        'DEPLOYMENT_CONFLICT',
+        'NETLIFY_AUTH_FAILED',
+        'NETLIFY_SITE_NOT_FOUND',
+      ].includes(error.code)
+    ) {
+      return error.message;
+    }
     return FRIENDLY[error.code] ?? error.message ?? FRIENDLY.INTERNAL_ERROR;
   }
   if (error instanceof Error && error.message) {

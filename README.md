@@ -14,8 +14,8 @@ Browser (Netlify)
 ## Quick start
 
 1. Create a Supabase project and run migrations: `npx supabase db push` (or link + push).
-2. Deploy Edge Functions: `npx supabase functions deploy transfer-actions admin-ops master-deploy`
-3. Set Edge secrets: `VERIFICATION_CODE_PEPPER`, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, optional `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID`
+2. Set Edge secrets: `VERIFICATION_CODE_PEPPER`, `TENANT_BASE_DOMAIN`, `DEPLOYMENT_DNS_TARGET`, optional `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` (+ optional `NETLIFY_DNS_ZONE_ID`)
+3. Deploy Edge Functions: `npx supabase functions deploy transfer-actions admin-ops master-deploy`
 4. Copy `web/.env.example` → `web/.env` with `VITE_SUPABASE_*` and `VITE_TENANT_BASE_DOMAIN`
 5. `npm --prefix web install && npm run dev`
 6. Promote a Web Finance (Master) Admin: insert into `master_admins` (see `supabase/seed_master_admin.sql`)

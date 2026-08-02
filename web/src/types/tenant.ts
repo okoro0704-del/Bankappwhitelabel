@@ -101,6 +101,7 @@ export interface DnsVerificationResult {
   message: string;
   checkedAt: string;
   code?: string | null;
+  detail?: string;
   tenant: MasterTenantDetail;
 }
 
