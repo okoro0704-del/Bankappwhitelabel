@@ -111,14 +111,24 @@ export const createApiServer = () => {
   });
 };
 
-export const startApiServer = (port = Number(process.env.PORT ?? 3000)) => {
-  assertProductionEnvSafety();
+export const startApiServer = (
+  port = Number(process.env.PORT ?? 3000),
+  host = process.env.HOST?.trim() || '0.0.0.0',
+) => {
+  try {
+    assertProductionEnvSafety();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid production configuration';
+    logger.error({ err: message }, 'Refusing to start: production configuration invalid');
+    throw error;
+  }
 
   const server = createApiServer();
 
-  server.listen(port, () => {
+  // Bind 0.0.0.0 so Railway/Docker healthchecks can reach the process (not localhost-only).
+  server.listen(port, host, () => {
     logger.info(
-      { port, deployment: getSafeDeploymentConfigSummary() },
+      { port, host, deployment: getSafeDeploymentConfigSummary() },
       'API server listening',
     );
   });
