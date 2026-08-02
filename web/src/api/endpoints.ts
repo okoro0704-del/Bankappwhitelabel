@@ -56,6 +56,14 @@ function dnsTarget(): string {
     .replace(/\.$/, '');
 }
 
+/** Shared Netlify site apex (no tenant subdomain) — use default slug for branding only. */
+function isSharedDeployHost(host: string): boolean {
+  const h = host.trim().toLowerCase().replace(/:\d+$/, '');
+  if (h.endsWith('.netlify.app')) return true;
+  const target = dnsTarget();
+  return Boolean(target) && h === target;
+}
+
 function pageParams(params: ListParams = {}) {
   const limit = params.limit ?? 20;
   const offset = params.offset ?? 0;
@@ -310,7 +318,11 @@ export const api = {
     const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
     const label = extractTenantLabelUnderBaseDomain(host, baseDomain());
     const devDefault = (import.meta.env.VITE_TENANT_DEV_DEFAULT_SLUG ?? 'northline').trim().toLowerCase();
-    const subdomain = label ?? (import.meta.env.DEV || host === 'localhost' ? devDefault : null);
+    const sharedHost = isSharedDeployHost(host);
+    const subdomain =
+      label ?? (import.meta.env.DEV || host === 'localhost' || host === '127.0.0.1' || sharedHost
+        ? devDefault
+        : null);
     if (!subdomain) {
       throw new ApiError('NOT_FOUND', 'Tenant not found', 404);
     }
