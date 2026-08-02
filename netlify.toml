@@ -1,0 +1,15 @@
+# Shared white-label SPA — one site for all tenant hostnames.
+# Publish directory must be the Vite build output (web/dist).
+
+[build]
+  command = "npm --prefix web ci && npm --prefix web run build"
+  publish = "web/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# SPA fallback: serve index.html for client-side routes (/login, /app, /master, …).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
