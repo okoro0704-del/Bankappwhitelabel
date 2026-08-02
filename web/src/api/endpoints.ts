@@ -37,7 +37,7 @@ import type {
   TenantDeploymentInfo,
   UpdateTenantRequest,
 } from '../types/tenant';
-import { extractTenantLabelUnderBaseDomain } from '../tenant/resolve';
+import { extractTenantLabelUnderBaseDomain, isPlatformBaseHost } from '../tenant/resolve';
 import {
   checkTls,
   deriveDeploymentStatus,
@@ -322,15 +322,25 @@ export const api = {
 
   getTenantConfig: async (): Promise<TenantConfiguration> => {
     const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-    const label = extractTenantLabelUnderBaseDomain(host, baseDomain());
+    const base = baseDomain();
+    const label = extractTenantLabelUnderBaseDomain(host, base);
     const devDefault = (import.meta.env.VITE_TENANT_DEV_DEFAULT_SLUG ?? 'northline').trim().toLowerCase();
     const sharedHost = isSharedDeployHost(host);
+    // Never resolve the platform apex as a tenant — that host is Web Finance only.
+    if (isPlatformBaseHost(host, base)) {
+      throw new ApiError('NOT_FOUND', 'Tenant not found', 404);
+    }
     const subdomain =
-      label ?? (import.meta.env.DEV || host === 'localhost' || host === '127.0.0.1' || sharedHost
+      label ??
+      (import.meta.env.DEV || host === 'localhost' || host === '127.0.0.1' || sharedHost
         ? devDefault
         : null);
     if (!subdomain) {
-      throw new ApiError('NOT_FOUND', 'Tenant not found', 404);
+      throw new ApiError(
+        'NOT_FOUND',
+        `No tenant subdomain for host ${host} (base ${base || '(unset)'}). Set VITE_TENANT_BASE_DOMAIN.`,
+        404,
+      );
     }
     try {
       const data = await rpcJson<Record<string, unknown>>('get_tenant_public_config', {

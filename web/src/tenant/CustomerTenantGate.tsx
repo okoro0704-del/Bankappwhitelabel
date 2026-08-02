@@ -41,16 +41,13 @@ export function CustomerTenantGate() {
           <h2>Application unavailable</h2>
           <p className="page-subtitle">{state.message}</p>
           <Alert tone="warning" title="Unable to open this application">
-            Tenant apps use a subdomain (for example northline.webfinance.app). The platform
-            console is at /master/login on the apex domain.
+            This hostname has no active application configuration. Ask the application owner to
+            activate the tenant, or confirm the subdomain DNS is correct.
           </Alert>
           <div className="row" style={{ marginTop: '1rem' }}>
             <Button variant="secondary" onClick={() => void reload()}>
               Try again
             </Button>
-            <a className="btn btn-primary" href="/master/login">
-              Web Finance console
-            </a>
           </div>
         </div>
       </div>

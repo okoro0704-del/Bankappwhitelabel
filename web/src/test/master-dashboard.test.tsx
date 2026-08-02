@@ -522,7 +522,7 @@ describe('Master branding', () => {
     await user.type(screen.getByLabelText('Application name'), ' X');
     await user.click(screen.getByRole('button', { name: /save branding/i }));
     expect(await screen.findByText(/Could not save branding/i)).toBeInTheDocument();
-    expect(screen.getByText(/do not have permission/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nope/i)).toBeInTheDocument();
   });
 
   it('preview component reflects branding props', () => {

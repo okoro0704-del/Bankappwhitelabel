@@ -90,31 +90,28 @@ describe('format helpers', () => {
 });
 
 describe('homePathForUser', () => {
-  it('prefers Master over tenant admin', async () => {
+  it('prefers Master only on the platform apex host', async () => {
     const { homePathForUser } = await import('../auth/homePath');
+    const masterUser = {
+      userId: 'u1',
+      role: 'admin' as const,
+      accountStatus: 'active' as const,
+      email: 'a@b.c',
+      username: 'a',
+      firstName: 'A',
+      lastName: 'B',
+      isMasterAdmin: true,
+    };
+    expect(homePathForUser(masterUser, 'webfinance.app')).toBe('/master');
+    expect(homePathForUser(masterUser, 'citbankplc.webfinance.app')).toBe('/admin');
     expect(
-      homePathForUser({
-        userId: 'u1',
-        role: 'admin',
-        accountStatus: 'active',
-        email: 'a@b.c',
-        username: 'a',
-        firstName: 'A',
-        lastName: 'B',
-        isMasterAdmin: true,
-      }),
-    ).toBe('/master');
-    expect(
-      homePathForUser({
-        userId: 'u1',
-        role: 'admin',
-        accountStatus: 'active',
-        email: 'a@b.c',
-        username: 'a',
-        firstName: 'A',
-        lastName: 'B',
-        isMasterAdmin: false,
-      }),
+      homePathForUser(
+        {
+          ...masterUser,
+          isMasterAdmin: false,
+        },
+        'citbankplc.webfinance.app',
+      ),
     ).toBe('/admin');
   });
 });

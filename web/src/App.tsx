@@ -31,6 +31,7 @@ import { MasterApplicationsPage } from './pages/master/MasterApplicationsPage';
 import { MasterCreateApplicationPage } from './pages/master/MasterCreateApplicationPage';
 import { MasterApplicationDetailPage } from './pages/master/MasterApplicationDetailPage';
 import { MasterBrandingPage } from './pages/master/MasterBrandingPage';
+import { MasterHostGate } from './components/MasterHostGate';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { homePathForUser } from './auth/homePath';
 import { ToastProvider } from './components/ui/Toast';
@@ -120,23 +121,28 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        element: <MasterPublicOnlyRoute />,
-        children: [{ path: '/master/login', element: <MasterLoginPage /> }],
-      },
-      {
-        element: <MasterProtectedRoute />,
+        element: <MasterHostGate />,
         children: [
           {
-            path: '/master',
-            element: <MasterLayout />,
+            element: <MasterPublicOnlyRoute />,
+            children: [{ path: '/master/login', element: <MasterLoginPage /> }],
+          },
+          {
+            element: <MasterProtectedRoute />,
             children: [
-              { index: true, element: <MasterDashboardPage /> },
-              { path: 'applications', element: <MasterApplicationsPage /> },
-              { path: 'applications/new', element: <MasterCreateApplicationPage /> },
-              { path: 'applications/:tenantId', element: <MasterApplicationDetailPage /> },
               {
-                path: 'applications/:tenantId/branding',
-                element: <MasterBrandingPage />,
+                path: '/master',
+                element: <MasterLayout />,
+                children: [
+                  { index: true, element: <MasterDashboardPage /> },
+                  { path: 'applications', element: <MasterApplicationsPage /> },
+                  { path: 'applications/new', element: <MasterCreateApplicationPage /> },
+                  { path: 'applications/:tenantId', element: <MasterApplicationDetailPage /> },
+                  {
+                    path: 'applications/:tenantId/branding',
+                    element: <MasterBrandingPage />,
+                  },
+                ],
               },
             ],
           },
