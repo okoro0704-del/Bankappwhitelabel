@@ -46,7 +46,7 @@ const FRIENDLY: Record<string, string> = {
 
 export function getFriendlyErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    // Prefer detailed server messages for deployment diagnostics.
+    // Prefer detailed server messages for deployment / activation diagnostics.
     if (
       error.message &&
       [
@@ -59,6 +59,9 @@ export function getFriendlyErrorMessage(error: unknown): string {
         'NETLIFY_AUTH_FAILED',
         'NETLIFY_SITE_NOT_FOUND',
         'INTERNAL_ERROR',
+        'VALIDATION_ERROR',
+        'FORBIDDEN',
+        'NOT_FOUND',
       ].includes(error.code)
     ) {
       return error.message;

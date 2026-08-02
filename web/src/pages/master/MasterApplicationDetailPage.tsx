@@ -676,23 +676,35 @@ export function MasterApplicationDetailPage() {
           <h2 style={{ fontSize: '1.05rem' }}>Actions</h2>
         </div>
         <Alert tone="info">
-          Activation is independent of DNS. Configure branding first, then activate when ready.
+          Activation makes this tenant live on its hostname (public config becomes available).
+          DNS/SSL can finish in parallel — you can activate once branding is ready.
           {deployment.deploymentStatus !== 'ready'
             ? ' Deployment is not Ready yet — DNS/SSL verification has not fully succeeded.'
-            : ''}
+            : ' Deployment is Ready.'}
         </Alert>
+        {actionError ? (
+          <Alert tone="error" title="Action failed">
+            {actionError}
+          </Alert>
+        ) : null}
         <div className="row" style={{ marginTop: '0.75rem' }}>
           {tenant.status === 'inactive' ? (
             <Button
+              type="button"
               disabled={busy}
               onClick={() =>
                 void runAction(() => api.masterActivateTenant(tenant.id), 'Application activated')
               }
             >
-              Activate
+              {busy ? 'Activating…' : 'Activate'}
             </Button>
           ) : (
-            <Button variant="danger" disabled={busy} onClick={() => setConfirmDeactivate(true)}>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={busy}
+              onClick={() => setConfirmDeactivate(true)}
+            >
               Deactivate
             </Button>
           )}

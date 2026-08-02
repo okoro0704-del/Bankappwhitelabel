@@ -381,7 +381,7 @@ begin
   end if;
 
   update public.tenants
-  set status = p_status, updated_at = now()
+  set status = p_status::public.tenant_status, updated_at = now()
   where id = p_tenant_id;
 
   if not found then
