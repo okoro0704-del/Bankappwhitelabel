@@ -7,11 +7,12 @@ import { Button } from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
 import { useTenant } from '../../tenant/TenantProvider';
 
+/** Customer account sign-in — username + password only. */
 export function LoginPage() {
-  const { signIn, error: sessionError } = useAuth();
+  const { signIn, signOut, error: sessionError } = useAuth();
   const { branding } = useTenant();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +24,13 @@ export function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await signIn(email, password);
-      navigate('/');
+      const user = await signIn(username, password);
+      if (user.role === 'admin') {
+        await signOut();
+        setError('This page is for customer accounts. Use Admin sign in instead.');
+        return;
+      }
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -35,9 +41,9 @@ export function LoginPage() {
   return (
     <div className="auth-card">
       <div>
-        <h2>Sign in</h2>
+        <h2>Customer sign in</h2>
         <p className="page-subtitle">
-          {branding?.loginSubtitle ?? `Sign in to ${applicationName}.`}
+          {branding?.loginSubtitle ?? `Sign in to your ${applicationName} account.`}
         </p>
       </div>
 
@@ -48,15 +54,15 @@ export function LoginPage() {
       )}
 
       <form className="stack" onSubmit={onSubmit}>
-        <Field label="Email" htmlFor="email">
+        <Field label="Username" htmlFor="username">
           <Input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
+            id="username"
+            name="username"
+            type="text"
+            autoComplete="username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
         </Field>
         <Field label="Password" htmlFor="password">
@@ -83,6 +89,91 @@ export function LoginPage() {
 
       <p>
         <Link to="/forgot-password">Forgot password?</Link>
+      </p>
+      <p className="muted" style={{ fontSize: '0.85rem' }}>
+        Tenant administrator? <Link to="/admin/login">Admin sign in</Link>
+      </p>
+      <p>
+        <Link to="/">Back to home</Link>
+      </p>
+    </div>
+  );
+}
+
+/** Tenant admin sign-in — username + password. */
+export function AdminLoginPage() {
+  const { signIn, signOut, error: sessionError } = useAuth();
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const user = await signIn(username, password);
+      if (user.role !== 'admin') {
+        await signOut();
+        setError('This page is for administrators. Use customer sign in instead.');
+        return;
+      }
+      navigate('/admin', { replace: true });
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="auth-card">
+      <div>
+        <h2>Admin sign in</h2>
+        <p className="page-subtitle">Sign in to manage users, funding, and transfers.</p>
+      </div>
+
+      {(error || sessionError) && (
+        <Alert tone="error" title="Unable to sign in">
+          {error || sessionError}
+        </Alert>
+      )}
+
+      <form className="stack" onSubmit={onSubmit}>
+        <Field label="Username" htmlFor="admin-username">
+          <Input
+            id="admin-username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            required
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </Field>
+        <Field label="Password" htmlFor="admin-password">
+          <Input
+            id="admin-password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+        <Button type="submit" block disabled={submitting}>
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+
+      <p>
+        <Link to="/login">Customer sign in</Link>
+      </p>
+      <p>
+        <Link to="/">Back to home</Link>
       </p>
     </div>
   );
@@ -114,7 +205,7 @@ export function ForgotPasswordPage() {
     <div className="auth-card">
       <div>
         <h2>Reset password</h2>
-        <p className="page-subtitle">We will email a reset link via Supabase Auth.</p>
+        <p className="page-subtitle">Enter the email on your account to receive a reset link.</p>
       </div>
 
       {done ? (

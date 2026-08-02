@@ -127,6 +127,7 @@ const sampleDetail: MasterTenantDetail = {
     ownerUserId: sampleTenant.ownerUserId,
     subdomain: sampleTenant.subdomain,
     handoffTempPassword: 'TempPass123!',
+    handoffAdminUsername: 'partner.admin',
     createdAt: sampleTenant.createdAt,
     updatedAt: sampleTenant.updatedAt,
   },
@@ -362,9 +363,12 @@ describe('Master applications', () => {
     );
 
     expect(await screen.findByText('Handoff information')).toBeInTheDocument();
+    expect(screen.getByText('Customer login URL')).toBeInTheDocument();
     expect(screen.getByText('Admin Dashboard URL')).toBeInTheDocument();
     expect(screen.getAllByText('https://partner.app.example.com/admin').length).toBeGreaterThan(0);
-    expect(screen.getByText('Temporary password')).toBeInTheDocument();
+    expect(screen.getAllByText('Admin username').length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue('partner.admin')).toBeInTheDocument();
+    expect(screen.getAllByText('Temporary password').length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue('TempPass123!')).toBeInTheDocument();
     expect(screen.getAllByText('partner').length).toBeGreaterThan(0);
     expect(screen.getAllByText(sampleTenant.id).length).toBeGreaterThan(0);
@@ -641,7 +645,7 @@ describe('Master deployment handoff', () => {
       .getByText('Hostname')
       .closest('.handoff-row') as HTMLElement;
     const loginRow = within(handoff)
-      .getByText('Login URL')
+      .getByText('Customer login URL')
       .closest('.handoff-row') as HTMLElement;
 
     fireEvent.click(within(hostnameRow).getByRole('button', { name: 'Copy' }));

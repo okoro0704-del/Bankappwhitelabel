@@ -20,7 +20,13 @@ export function ProtectedRoute({ role }: { role?: 'admin' | 'user' }) {
   }
 
   if (!session || !appUser) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate
+        to={role === 'admin' ? '/admin/login' : '/login'}
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
   }
 
   if (role === 'admin' && appUser.role !== 'admin') {

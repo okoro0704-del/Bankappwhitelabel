@@ -404,6 +404,10 @@ export const api = {
       p_clear_handoff_temp_password:
         Object.prototype.hasOwnProperty.call(body, 'handoffTempPassword') &&
         body.handoffTempPassword === null,
+      p_handoff_admin_username: body.handoffAdminUsername ?? null,
+      p_clear_handoff_admin_username:
+        Object.prototype.hasOwnProperty.call(body, 'handoffAdminUsername') &&
+        body.handoffAdminUsername === null,
     });
     return mapMasterDetailRpc(data, baseDomain(), dnsTarget());
   },

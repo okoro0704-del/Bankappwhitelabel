@@ -32,6 +32,7 @@ export interface Tenant {
   ownerUserId: string | null;
   subdomain: string;
   handoffTempPassword: string | null;
+  handoffAdminUsername: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,6 +122,7 @@ export interface UpdateTenantRequest {
   ownerUserId?: string | null;
   branding?: Partial<TenantBranding>;
   handoffTempPassword?: string | null;
+  handoffAdminUsername?: string | null;
 }
 
 /** Deterministic Northline tenant id (matches backend migration seed). */

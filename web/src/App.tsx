@@ -8,7 +8,8 @@ import { AuthLayout } from './layouts/AuthLayout';
 import { UserLayout } from './layouts/UserLayout';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MasterLayout } from './layouts/MasterLayout';
-import { LoginPage, ForgotPasswordPage } from './pages/auth/LoginPage';
+import { LoginPage, AdminLoginPage, ForgotPasswordPage } from './pages/auth/LoginPage';
+import { LandingPage } from './pages/public/LandingPage';
 import { UserDashboardPage } from './pages/user/DashboardPage';
 import { AccountPage } from './pages/user/AccountPage';
 import { TransactionsPage } from './pages/user/TransactionsPage';
@@ -38,11 +39,11 @@ import { ToastProvider } from './components/ui/Toast';
 import { TenantProvider } from './tenant/TenantProvider';
 import { CustomerTenantGate } from './tenant/CustomerTenantGate';
 
-function HomeRedirect() {
+function LandingOrHome() {
   const { loading, appUser } = useAuth();
   if (loading) return null;
-  if (!appUser) return <Navigate to="/login" replace />;
-  return <Navigate to={homePathForUser(appUser)} replace />;
+  if (appUser) return <Navigate to={homePathForUser(appUser)} replace />;
+  return <LandingPage />;
 }
 
 function RootLayout() {
@@ -69,7 +70,7 @@ export const router = createBrowserRouter([
       {
         element: <CustomerTenantGate />,
         children: [
-          { path: '/', element: <HomeRedirect /> },
+          { path: '/', element: <LandingOrHome /> },
           {
             element: <PublicOnlyRoute />,
             children: [
@@ -77,6 +78,7 @@ export const router = createBrowserRouter([
                 element: <AuthLayout />,
                 children: [
                   { path: '/login', element: <LoginPage /> },
+                  { path: '/admin/login', element: <AdminLoginPage /> },
                   { path: '/forgot-password', element: <ForgotPasswordPage /> },
                 ],
               },

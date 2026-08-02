@@ -157,8 +157,8 @@ describe('login state', () => {
         <LoginPage />
       </TenantProvider>,
     );
-    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /customer sign in/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
   });
 });

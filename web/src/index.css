@@ -1556,3 +1556,113 @@ a.list-row-btn {
     background: var(--nl-bg, #f4f6f8);
   }
 }
+
+/* --- Tenant landing --- */
+.landing {
+  min-height: 100vh;
+}
+
+.landing-hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #f4f7f6;
+}
+
+.landing-hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, rgba(12, 24, 32, 0.78) 0%, rgba(12, 24, 32, 0.45) 48%, rgba(12, 24, 32, 0.62) 100%),
+    linear-gradient(to top, rgba(8, 16, 22, 0.55), transparent 42%);
+}
+
+.landing-top,
+.landing-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-top {
+  padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 4vw, 3rem);
+}
+
+.landing-brand .shell-brand-name,
+.landing-brand .shell-brand-tag {
+  color: #f4f7f6;
+}
+
+.landing-hero-content {
+  padding: clamp(2rem, 8vh, 5rem) clamp(1.25rem, 4vw, 3rem) clamp(2.5rem, 8vh, 4.5rem);
+  max-width: 40rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.landing-brand-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.75rem, 8vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.landing-support {
+  margin: 0;
+  max-width: 28rem;
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  line-height: 1.45;
+  color: rgba(244, 247, 246, 0.88);
+}
+
+.landing-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding: 0.85rem 1.25rem 0.85rem 0.9rem;
+  border-radius: 999px;
+  background: #f4f7f6;
+  color: #14212b;
+  text-decoration: none;
+  font-weight: 650;
+  font-size: 1.05rem;
+  transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.landing-login-btn:hover {
+  transform: translateY(-2px);
+  background: #ffffff;
+}
+
+.landing-login-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: #1f6f68;
+  color: #f4f7f6;
+}
+
+.landing-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  color: rgba(244, 247, 246, 0.72);
+}
+
+@media (max-width: 720px) {
+  .landing-hero-content {
+    max-width: none;
+  }
+}
+

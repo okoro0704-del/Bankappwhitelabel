@@ -212,6 +212,7 @@ export function mapMasterDetailRpc(
       ownerUserId: (tenant.ownerUserId as string | null) ?? null,
       subdomain: String(tenant.subdomain),
       handoffTempPassword: (tenant.handoffTempPassword as string | null) ?? null,
+      handoffAdminUsername: (tenant.handoffAdminUsername as string | null) ?? null,
       createdAt: String(tenant.createdAt),
       updatedAt: String(tenant.updatedAt),
     },

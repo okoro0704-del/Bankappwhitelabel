@@ -64,7 +64,9 @@ export function MasterApplicationDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [tempPasswordDraft, setTempPasswordDraft] = useState<string | null>(null);
+  const [adminUsernameDraft, setAdminUsernameDraft] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [savingUsername, setSavingUsername] = useState(false);
 
   const tenant = detail.data?.tenant;
   const branding = detail.data?.branding;
@@ -212,6 +214,22 @@ export function MasterApplicationDetailPage() {
       setActionError(getFriendlyErrorMessage(err));
     } finally {
       setSavingPassword(false);
+    }
+  }
+
+  async function saveAdminUsername(next: string | null) {
+    if (!tenant) return;
+    setSavingUsername(true);
+    setActionError(null);
+    try {
+      await api.masterUpdateTenant(tenant.id, { handoffAdminUsername: next });
+      pushToast(next ? 'Admin username saved' : 'Admin username cleared', 'success');
+      setAdminUsernameDraft(null);
+      await detail.reload();
+    } catch (err) {
+      setActionError(getFriendlyErrorMessage(err));
+    } finally {
+      setSavingUsername(false);
     }
   }
 
@@ -553,8 +571,8 @@ export function MasterApplicationDetailPage() {
       <div className="card card-pad stack">
         <h2 style={{ fontSize: '1.05rem' }}>Handoff information</h2>
         <p className="muted">
-          Deliverables for the application owner. Share the admin dashboard URL and temporary
-          password securely. Rotate the password after first login.
+          Deliverables for the application owner. Customer login is for account holders only.
+          Admin credentials are separate. Rotate the temporary password after first login.
         </p>
         <div className="handoff-grid">
           <HandoffRow
@@ -563,7 +581,7 @@ export function MasterApplicationDetailPage() {
             onCopy={() => copyText(branding.applicationName || tenant.name)}
           />
           <HandoffRow
-            label="Login URL"
+            label="Customer login URL"
             value={deployment.loginUrl}
             onCopy={() => copyText(deployment.loginUrl)}
           />
@@ -571,6 +589,19 @@ export function MasterApplicationDetailPage() {
             label="Admin Dashboard URL"
             value={deployment.adminDashboardUrl}
             onCopy={() => copyText(deployment.adminDashboardUrl)}
+          />
+          <HandoffRow
+            label="Admin username"
+            value={
+              adminUsernameDraft ??
+              tenant.handoffAdminUsername ??
+              'Not set — enter below'
+            }
+            onCopy={
+              (adminUsernameDraft ?? tenant.handoffAdminUsername)
+                ? () => copyText((adminUsernameDraft ?? tenant.handoffAdminUsername)!)
+                : undefined
+            }
           />
           <HandoffRow
             label="Temporary password"
@@ -626,6 +657,47 @@ export function MasterApplicationDetailPage() {
         </div>
 
         <div className="stack" style={{ marginTop: '0.75rem' }}>
+          <Field
+            label="Admin username"
+            htmlFor="handoff-admin-username"
+            hint="Username the tenant admin will use at /admin/login"
+          >
+            <Input
+              id="handoff-admin-username"
+              value={adminUsernameDraft ?? tenant.handoffAdminUsername ?? ''}
+              onChange={(e) => setAdminUsernameDraft(e.target.value)}
+              autoComplete="off"
+              placeholder="e.g. citbank.admin"
+            />
+          </Field>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <Button
+              type="button"
+              disabled={
+                busy ||
+                savingUsername ||
+                !(adminUsernameDraft ?? tenant.handoffAdminUsername)?.trim()
+              }
+              onClick={() =>
+                void saveAdminUsername(
+                  (adminUsernameDraft ?? tenant.handoffAdminUsername ?? '').trim() || null,
+                )
+              }
+            >
+              {savingUsername ? 'Saving…' : 'Save username'}
+            </Button>
+            {tenant.handoffAdminUsername ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={busy || savingUsername}
+                onClick={() => void saveAdminUsername(null)}
+              >
+                Clear username
+              </Button>
+            ) : null}
+          </div>
+
           <Field
             label="Set temporary password"
             htmlFor="handoff-temp-password"

@@ -19,7 +19,7 @@ interface AuthState {
   session: Session | null;
   appUser: SessionUser | null;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (usernameOrEmail: string, password: string) => Promise<SessionUser>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshAppUser: () => Promise<void>;
@@ -100,26 +100,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrate]);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      setError(null);
-      const { data, error: authError } = await getSupabase().auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+  const signIn = useCallback(async (usernameOrEmail: string, password: string) => {
+    setError(null);
+    const identifier = usernameOrEmail.trim();
+    let email = identifier;
 
-      if (authError) {
-        const message = authError.message.toLowerCase().includes('invalid')
-          ? 'Invalid email or password.'
-          : authError.message;
+    if (!identifier.includes('@')) {
+      const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
+        p_identifier: identifier,
+      });
+      if (resolveError) {
+        throw new ApiError('INTERNAL_ERROR', resolveError.message, 500);
+      }
+      if (!resolved || typeof resolved !== 'string') {
+        const message = 'Invalid username or password.';
         setError(message);
         throw new ApiError('UNAUTHENTICATED', message, 401);
       }
+      email = resolved;
+    }
 
-      await hydrate(data.session);
-    },
-    [hydrate],
-  );
+    const { data, error: authError } = await getSupabase().auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (authError) {
+      const message = authError.message.toLowerCase().includes('invalid')
+        ? 'Invalid username or password.'
+        : authError.message;
+      setError(message);
+      throw new ApiError('UNAUTHENTICATED', message, 401);
+    }
+
+    await hydrate(data.session);
+    const user = await loadAppUser();
+    setAppUser(user);
+    return user;
+  }, [hydrate]);
 
   const signOut = useCallback(async () => {
     setError(null);
