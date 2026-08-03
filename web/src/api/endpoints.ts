@@ -306,8 +306,39 @@ export const api = {
     }
   },
 
-  adminUpdateStatus: (profileId: string, status: 'active' | 'suspended') =>
-    invokeFunction<Profile>('admin-ops', { action: 'setProfileStatus', profileId, status }),
+  adminUpdateStatus: async (profileId: string, status: 'active' | 'suspended'): Promise<Profile> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_set_profile_status', {
+        p_profile_id: profileId,
+        p_status: status,
+      });
+      return {
+        id: String(data.id),
+        userId: String(data.userId),
+        firstName: String(data.firstName),
+        lastName: String(data.lastName),
+        email: String(data.email),
+        phone: (data.phone as string | null) ?? null,
+        username: String(data.username),
+        status: data.status as Profile['status'],
+        role: data.role as Profile['role'],
+        createdAt: String(data.createdAt),
+        updatedAt: String(data.updatedAt),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Status RPC is missing. Run supabase/migrations/20260803080000_admin_fund_wallet_rpc.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
 
   adminUpdateProfile: async (
     profileId: string,
@@ -328,12 +359,55 @@ export const api = {
     return mapProfile(data);
   },
 
-  adminFundWallet: (body: FundWalletRequest) =>
-    invokeFunction<FundWalletResult>('admin-ops', {
-      action: 'fundWallet',
-      ...body,
-      idempotencyKey: body.idempotencyKey ?? crypto.randomUUID(),
-    }),
+  adminFundWallet: async (body: FundWalletRequest): Promise<FundWalletResult> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_fund_wallet', {
+        p_amount: body.amount,
+        p_wallet_id: body.walletId ?? null,
+        p_account_id: body.accountId ?? null,
+        p_reference: body.reference ?? null,
+        p_idempotency_key: body.idempotencyKey ?? crypto.randomUUID(),
+        p_description: body.description ?? null,
+      });
+      const walletData = (data.wallet ?? {}) as Record<string, unknown>;
+      const txData = (data.transaction ?? {}) as Record<string, unknown>;
+      return {
+        wallet: {
+          id: String(walletData.id),
+          accountId: String(walletData.accountId),
+          balance: Number(walletData.balance ?? 0),
+          currency: String(walletData.currency ?? 'USD'),
+          updatedAt: String(walletData.updatedAt ?? new Date().toISOString()),
+        },
+        transaction: {
+          id: String(txData.id),
+          accountId: String(txData.accountId),
+          walletId: String(txData.walletId),
+          type: String(txData.type),
+          status: String(txData.status),
+          amount: Number(txData.amount ?? 0),
+          balanceBefore: Number(txData.balanceBefore ?? 0),
+          balanceAfter: Number(txData.balanceAfter ?? 0),
+          reference: String(txData.reference ?? ''),
+          description: (txData.description as string | null) ?? null,
+          createdAt: String(txData.createdAt ?? new Date().toISOString()),
+        },
+        idempotentReplay: Boolean(data.idempotentReplay),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Funding RPC is missing. Run supabase/migrations/20260803080000_admin_fund_wallet_rpc.sql in the Supabase SQL Editor, then try again.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
 
   adminGetWallet: async (walletId: string): Promise<Wallet> => {
     const { data, error } = await getSupabase().from('wallets').select('*').eq('id', walletId).maybeSingle();
