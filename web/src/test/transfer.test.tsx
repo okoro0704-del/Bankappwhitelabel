@@ -83,6 +83,7 @@ async function fillAndConfirm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/recipient bank/i), 'Harbor Bank');
   await user.type(screen.getByLabelText(/^amount$/i), '25');
   await user.click(screen.getByRole('button', { name: /continue to review/i }));
+  await user.type(screen.getByLabelText(/transfer pin/i), '7890');
   await user.click(screen.getByRole('button', { name: /confirm transfer/i }));
 }
 

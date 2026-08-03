@@ -61,7 +61,7 @@ export function accountTypeLabel(type: AccountType | string): string {
  * Customer-facing account type. Backend modes stay hidden from account holders.
  */
 export function customerAccountTypeLabel(_type?: AccountType | string): string {
-  return 'Current account';
+  return 'Checking account';
 }
 
 export function statusLabel(status: string): string {

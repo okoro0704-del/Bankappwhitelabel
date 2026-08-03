@@ -88,9 +88,9 @@ describe('format helpers', () => {
   });
 
   it('hides backend account modes from customers', () => {
-    expect(customerAccountTypeLabel('escrow')).toBe('Current account');
-    expect(customerAccountTypeLabel('one_time_transfer')).toBe('Current account');
-    expect(customerAccountTypeLabel('four_stage_verification')).toBe('Current account');
+    expect(customerAccountTypeLabel('escrow')).toBe('Checking account');
+    expect(customerAccountTypeLabel('one_time_transfer')).toBe('Checking account');
+    expect(customerAccountTypeLabel('four_stage_verification')).toBe('Checking account');
   });
 
   it('formats money from API amounts', () => {

@@ -76,6 +76,22 @@ function pageParams(params: ListParams = {}) {
   return { limit, offset, from: offset, to: offset + limit - 1 };
 }
 
+function mapTransferAction(data: Record<string, unknown>): TransferActionResponse {
+  const transferRow = data.transfer as Record<string, unknown> | undefined;
+  return {
+    status: data.status as TransferActionResponse['status'],
+    transferId: data.transferId ? String(data.transferId) : undefined,
+    reference: data.reference ? String(data.reference) : undefined,
+    amount: data.amount !== undefined && data.amount !== null ? Number(data.amount) : undefined,
+    transactionId: data.transactionId ? String(data.transactionId) : undefined,
+    stage: data.stage !== undefined && data.stage !== null ? (Number(data.stage) as 1 | 2 | 3 | 4) : undefined,
+    reasonCode: (data.reasonCode as string | undefined) ?? undefined,
+    reason: (data.reason as string | undefined) ?? undefined,
+    idempotentReplay: Boolean(data.idempotentReplay),
+    transfer: transferRow ? mapTransfer(transferRow) : undefined,
+  };
+}
+
 async function requireOwnAccountRow() {
   const { data: sessionData } = await getSupabase().auth.getUser();
   const userId = sessionData.user?.id;
@@ -177,27 +193,60 @@ export const api = {
     return mapTransfer(data);
   },
 
-  createTransfer: (body: CreateTransferRequest) =>
-    invokeFunction<TransferActionResponse>('transfer-actions', { action: 'create', ...body }),
+  createTransfer: async (body: CreateTransferRequest): Promise<TransferActionResponse> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('user_create_transfer', {
+        p_recipient_name: body.recipientName,
+        p_recipient_account: body.recipientAccount,
+        p_recipient_bank: body.recipientBank,
+        p_amount: body.amount,
+        p_idempotency_key: body.idempotencyKey,
+        p_description: body.description ?? null,
+        p_pin: body.pin,
+      });
+      return mapTransferAction(data);
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Transfer RPC is missing. Run supabase/migrations/20260803130000_transfer_rpcs_and_pin.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
 
-  getVerification: (id: string) =>
-    invokeFunction<VerificationStageResponse>('transfer-actions', {
-      action: 'getVerification',
-      transferId: id,
-    }),
+  getVerification: async (id: string): Promise<VerificationStageResponse> => {
+    const data = await rpcJson<Record<string, unknown>>('user_get_transfer_verification', {
+      p_transfer_id: id,
+    });
+    return {
+      transferId: String(data.transferId ?? id),
+      status: String(data.status ?? ''),
+      stage: Number(data.stage ?? 0),
+      stagesCompleted: Number(data.stagesCompleted ?? 0),
+      expiresAt: (data.expiresAt as string | undefined) ?? undefined,
+    };
+  },
 
-  submitVerification: (id: string, code: string) =>
-    invokeFunction<TransferActionResponse>('transfer-actions', {
-      action: 'submitVerification',
-      transferId: id,
-      code,
-    }),
+  submitVerification: async (id: string, code: string): Promise<TransferActionResponse> => {
+    const data = await rpcJson<Record<string, unknown>>('user_submit_transfer_verification', {
+      p_transfer_id: id,
+      p_code: code,
+    });
+    return mapTransferAction(data);
+  },
 
-  completeTransfer: (id: string) =>
-    invokeFunction<TransferActionResponse>('transfer-actions', {
-      action: 'complete',
-      transferId: id,
-    }),
+  completeTransfer: async (id: string): Promise<TransferActionResponse> => {
+    const data = await rpcJson<Record<string, unknown>>('user_complete_transfer', {
+      p_transfer_id: id,
+    });
+    return mapTransferAction(data);
+  },
 
   adminListUsers: async (params?: ListParams): Promise<Paginated<AdminUser>> => {
     const { limit, offset, from, to } = pageParams(params);
@@ -285,6 +334,9 @@ export const api = {
           handoffTempPassword: temporaryPassword,
           createdAt: String(profileData.createdAt),
           updatedAt: String(profileData.updatedAt),
+          handoffTransferPin:
+            (profileData.handoffTransferPin as string | null | undefined) ??
+            (String(accountData.accountNumber ?? '').slice(-4) || null),
         },
         account: {
           id: String(accountData.id),

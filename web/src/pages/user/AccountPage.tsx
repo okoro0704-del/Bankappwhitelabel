@@ -71,7 +71,7 @@ export function AccountPage() {
               <dd>{formatAccountNumber(data.accountNumber)}</dd>
             </div>
             <div>
-              <dt>Account type</dt>
+              <dt>Account</dt>
               <dd>{customerAccountTypeLabel(data.accountType)}</dd>
             </div>
             <div>
@@ -119,7 +119,7 @@ export function AccountPage() {
       </div>
 
       <Alert tone="info">
-        Your account is shown as a current account. Transfer rules are applied securely in the
+        Your account is shown as a checking account. Transfer rules are applied securely in the
         background when you send money.
       </Alert>
     </div>

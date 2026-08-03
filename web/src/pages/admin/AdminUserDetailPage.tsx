@@ -80,6 +80,7 @@ export function AdminUserDetailPage() {
   const { profile, account } = detail.data;
   const passwordWasSet = Boolean(profile.handoffTempPassword?.trim());
   const tempPassword = profile.handoffTempPassword?.trim() || profile.username;
+  const transferPin = profile.handoffTransferPin?.trim() || account.accountNumber.slice(-4);
   const loginUrl = `${window.location.origin}/login`;
 
   async function copyText(value: string) {
@@ -196,6 +197,15 @@ export function AdminUserDetailPage() {
                 Defaults to the username when no separate password was stored. Use{' '}
                 <strong>Set login password to username</strong> above so Auth accepts it.
               </p>
+            </dd>
+          </div>
+          <div>
+            <dt>Transfer PIN</dt>
+            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span className="mono-break">{transferPin}</span>
+              <Button type="button" variant="secondary" onClick={() => void copyText(transferPin)}>
+                Copy
+              </Button>
             </dd>
           </div>
         </dl>

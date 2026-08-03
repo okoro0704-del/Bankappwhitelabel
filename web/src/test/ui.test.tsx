@@ -205,7 +205,7 @@ describe('dashboard states', () => {
 
     expect(await screen.findByText(/available balance/i)).toBeInTheDocument();
     expect(screen.getByText(/250\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/escrow/i)).toBeInTheDocument();
+    expect(screen.getByText(/checking account/i)).toBeInTheDocument();
     expect(screen.getByText(/no transactions yet/i)).toBeInTheDocument();
   });
 
@@ -254,7 +254,7 @@ describe('account rendering', () => {
     });
 
     renderWithProviders(<AccountPage />);
-    expect(await screen.findByText(/one-time transfer/i)).toBeInTheDocument();
+    expect(await screen.findAllByText(/checking account/i)).not.toHaveLength(0);
     expect(screen.getByText(/1234 567 890/)).toBeInTheDocument();
   });
 });

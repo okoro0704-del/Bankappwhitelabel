@@ -29,6 +29,10 @@ export function mapProfile(row: Record<string, unknown>): Profile {
       (row.handoff_temp_password as string | null | undefined) ??
       (row.handoffTempPassword as string | null | undefined) ??
       null,
+    handoffTransferPin:
+      (row.handoff_transfer_pin as string | null | undefined) ??
+      (row.handoffTransferPin as string | null | undefined) ??
+      null,
     createdAt: String(row.created_at ?? row.createdAt),
     updatedAt: String(row.updated_at ?? row.updatedAt),
   };
@@ -88,24 +92,29 @@ export function mapTransaction(row: Record<string, unknown>): Transaction {
 }
 
 export function mapTransfer(row: Record<string, unknown>): Transfer {
+  const recipient = (row.recipient ?? {}) as Record<string, unknown>;
   return {
     id: String(row.id),
     reference: String(row.reference),
     status: String(row.status),
     amount: Number(row.amount),
     recipient: {
-      name: String(row.recipient_name),
-      account: String(row.recipient_account),
-      bank: String(row.recipient_bank),
+      name: String(recipient.name ?? row.recipient_name ?? ''),
+      account: String(recipient.account ?? row.recipient_account ?? ''),
+      bank: String(recipient.bank ?? row.recipient_bank ?? ''),
     },
     description: (row.description as string | null) ?? null,
-    currentStage: Number(row.current_stage ?? 0),
-    stagesCompleted: Number(row.stages_completed ?? 0),
-    reasonCode: (row.reason_code as string | null) ?? null,
-    failureReason: (row.failure_reason as string | null) ?? null,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
-    completedAt: (row.completed_at as string | null) ?? null,
+    currentStage: Number(row.currentStage ?? row.current_stage ?? 0),
+    stagesCompleted: Number(row.stagesCompleted ?? row.stages_completed ?? 0),
+    reasonCode: (row.reasonCode as string | null) ?? (row.reason_code as string | null) ?? null,
+    failureReason:
+      (row.failureReason as string | null) ?? (row.failure_reason as string | null) ?? null,
+    createdAt: String(row.createdAt ?? row.created_at),
+    updatedAt: String(row.updatedAt ?? row.updated_at),
+    completedAt:
+      (row.completedAt as string | null | undefined) ??
+      (row.completed_at as string | null | undefined) ??
+      null,
   };
 }
 

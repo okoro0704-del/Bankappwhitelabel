@@ -121,6 +121,26 @@ export function AdminCreateUserPage() {
               </dd>
             </div>
             <div>
+              <dt>Transfer PIN</dt>
+              <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">
+                  {created.profile.handoffTransferPin ?? created.account.accountNumber.slice(-4)}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    void copyText(
+                      created.profile.handoffTransferPin ?? created.account.accountNumber.slice(-4),
+                    )
+                  }
+                >
+                  Copy
+                </Button>
+              </dd>
+            </div>
+            <div>
               <dt>Account number</dt>
               <dd>{formatAccountNumber(created.account.accountNumber)}</dd>
             </div>

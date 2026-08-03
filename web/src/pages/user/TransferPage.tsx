@@ -63,6 +63,7 @@ export function TransferPage() {
   const [action, setAction] = useState<TransferActionResponse | null>(null);
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [verification, setVerification] = useState<VerificationStageResponse | null>(null);
+  const [pin, setPin] = useState('');
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [failureMessage, setFailureMessage] = useState('Your transfer could not be completed.');
@@ -305,6 +306,11 @@ export function TransferPage() {
 
   async function onConfirmTransfer() {
     if (submitting) return;
+    const trimmedPin = pin.trim();
+    if (!/^\d{4,8}$/.test(trimmedPin)) {
+      setFormError('Enter your 4–8 digit transfer PIN to confirm.');
+      return;
+    }
     setSubmitting(true);
     setFormError(null);
     setProcessingMessage('Submitting your transfer…');
@@ -321,6 +327,7 @@ export function TransferPage() {
         amount: Number(draft.amount),
         description: draft.description.trim() || undefined,
         idempotencyKey: key,
+        pin: trimmedPin,
       });
       await applyAction(result);
     } catch (err) {
@@ -342,6 +349,12 @@ export function TransferPage() {
       }
 
       await refreshWallet().catch(() => undefined);
+
+      if (err instanceof ApiError && err.code === 'INVALID_TRANSFER_PIN') {
+        setFormError(getFriendlyErrorMessage(err));
+        setStep('review');
+        return;
+      }
 
       if (err instanceof ApiError && err.code === 'TRANSFER_LIMIT_REACHED') {
         setFailureMessage(limitReachedMessage('TRANSFER_LIMIT_REACHED'));
@@ -458,6 +471,7 @@ export function TransferPage() {
     setDraft(emptyDraft);
     setFieldErrors({});
     setFormError(null);
+    setPin('');
     setAction(null);
     setTransfer(null);
     setVerification(null);
@@ -599,11 +613,29 @@ export function TransferPage() {
             accountNumber={account?.accountNumber}
             balance={wallet?.balance}
           />
+          <div className="card card-pad stack">
+            <Field
+              label="Transfer PIN"
+              htmlFor="transfer-pin"
+              hint="Enter your 4–8 digit transfer PIN to authorize this payment."
+            >
+              <Input
+                id="transfer-pin"
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={8}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                required
+              />
+            </Field>
+          </div>
           <div className="row">
             <Button type="button" variant="secondary" onClick={() => setStep('form')} disabled={submitting}>
               Edit
             </Button>
-            <Button type="button" onClick={() => void onConfirmTransfer()} disabled={submitting}>
+            <Button type="button" onClick={() => void onConfirmTransfer()} disabled={submitting || pin.length < 4}>
               {submitting ? 'Confirming…' : 'Confirm transfer'}
             </Button>
           </div>

@@ -55,9 +55,27 @@ export async function rpcJson<T>(fn: string, args: Record<string, unknown> = {})
             ? 'NOT_FOUND'
             : message.includes('ACCOUNT_INACTIVE')
               ? 'ACCOUNT_INACTIVE'
-              : message.includes('VALIDATION_ERROR')
-                ? 'VALIDATION_ERROR'
-                : 'INTERNAL_ERROR';
+              : message.includes('INSUFFICIENT_BALANCE')
+                ? 'INSUFFICIENT_BALANCE'
+                : message.includes('INVALID_TRANSFER_PIN')
+                  ? 'INVALID_TRANSFER_PIN'
+                  : message.includes('EXTERNAL_TRANSFER_NOT_ALLOWED')
+                    ? 'EXTERNAL_TRANSFER_NOT_ALLOWED'
+                    : message.includes('TRANSFER_LIMIT_REACHED')
+                      ? 'TRANSFER_LIMIT_REACHED'
+                      : message.includes('INVALID_VERIFICATION_CODE')
+                        ? 'INVALID_VERIFICATION_CODE'
+                        : message.includes('VERIFICATION_EXPIRED')
+                          ? 'VERIFICATION_EXPIRED'
+                          : message.includes('TOO_MANY_VERIFICATION_ATTEMPTS')
+                            ? 'TOO_MANY_VERIFICATION_ATTEMPTS'
+                            : message.includes('VERIFICATION_REQUIRED')
+                              ? 'VERIFICATION_REQUIRED'
+                              : message.includes('INVALID_TRANSFER')
+                                ? 'INVALID_TRANSFER'
+                                : message.includes('VALIDATION_ERROR')
+                                  ? 'VALIDATION_ERROR'
+                                  : 'INTERNAL_ERROR';
     const cleaned = message.replace(/^.*VALIDATION_ERROR:\s*/i, '').trim() || message;
     throw new ApiError(
       code,

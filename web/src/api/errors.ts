@@ -21,6 +21,7 @@ const FRIENDLY: Record<string, string> = {
   TRANSFER_LIMIT_REACHED:
     'Your transfer could not be completed. Please contact the bank for assistance.',
   INVALID_TRANSFER: 'This transfer cannot be completed.',
+  INVALID_TRANSFER_PIN: 'Incorrect transfer PIN. Please try again.',
   VERIFICATION_REQUIRED: 'Additional verification is required to continue.',
   INVALID_VERIFICATION_CODE: 'Incorrect verification code',
   VERIFICATION_EXPIRED: 'Verification code expired',

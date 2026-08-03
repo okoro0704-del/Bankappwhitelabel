@@ -44,6 +44,7 @@ export interface Profile {
   role: UserRole;
   /** Admin deliverable — temporary password for the account holder (if still set). */
   handoffTempPassword?: string | null;
+  handoffTransferPin?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -136,6 +137,8 @@ export interface CreateTransferRequest {
   amount: number;
   description?: string;
   idempotencyKey: string;
+  /** 4–8 digit transfer PIN required to authorize the transfer. */
+  pin: string;
 }
 
 export interface AdminUser {
