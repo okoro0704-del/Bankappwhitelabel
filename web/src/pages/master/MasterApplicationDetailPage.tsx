@@ -209,7 +209,17 @@ export function MasterApplicationDetailPage() {
     setActionError(null);
     try {
       await api.masterUpdateTenant(tenant.id, { handoffTempPassword: next });
-      pushToast(next ? 'Temporary password saved' : 'Temporary password cleared', 'success');
+      const username = (adminUsernameDraft ?? tenant.handoffAdminUsername ?? '').trim();
+      if (next && username) {
+        const result = await api.masterProvisionTenantAdmin(tenant.id, {
+          username,
+          password: next,
+          email: adminEmailDraft.trim() || undefined,
+        });
+        pushToast(result.message, 'success');
+      } else {
+        pushToast(next ? 'Temporary password saved' : 'Temporary password cleared', 'success');
+      }
       setTempPasswordDraft(null);
       await detail.reload();
     } catch (err) {
@@ -601,9 +611,9 @@ export function MasterApplicationDetailPage() {
       <div className="card card-pad stack">
         <h2 style={{ fontSize: '1.05rem' }}>Handoff information</h2>
         <p className="muted">
-          Deliverables for the application owner. Customer login is for account holders only.
-          Use <strong>Enable admin login</strong> to create or update the Auth user so username and
-          password work at /admin/login. Rotate the temporary password after first login.
+          Enter username, temporary password, and email (required if no owner yet), then click{' '}
+          <strong>Enable admin login</strong>. That creates the real Auth account — saving notes alone
+          will not unlock /admin/login. Username may only use letters, numbers, and underscore.
         </p>
         <div className="handoff-grid">
           <HandoffRow

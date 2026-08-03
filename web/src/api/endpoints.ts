@@ -416,13 +416,31 @@ export const api = {
     tenantId: string,
     body: { username: string; password: string; email?: string | null },
   ): Promise<{ ownerUserId: string; username: string; email: string; message: string }> => {
-    return invokeFunction('master-deploy', {
-      action: 'provisionTenantAdmin',
-      tenantId,
-      username: body.username,
-      password: body.password,
-      email: body.email ?? null,
-    });
+    try {
+      const data = await rpcJson<Record<string, unknown>>('master_provision_tenant_admin', {
+        p_tenant_id: tenantId,
+        p_username: body.username,
+        p_password: body.password,
+        p_email: body.email?.trim() ? body.email.trim() : null,
+      });
+      return {
+        ownerUserId: String(data.ownerUserId ?? ''),
+        username: String(data.username ?? body.username),
+        email: String(data.email ?? body.email ?? ''),
+        message: String(data.message ?? 'Admin login enabled.'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (!missingFn) throw error;
+
+      throw new ApiError(
+        'VALIDATION_ERROR',
+        'Admin login RPC is missing. Run supabase/migrations/20260803030000_master_provision_tenant_admin_rpc.sql in the Supabase SQL Editor, then click Enable admin login again.',
+        400,
+      );
+    }
   },
 
   masterActivateTenant: async (tenantId: string): Promise<MasterTenantDetail> => {

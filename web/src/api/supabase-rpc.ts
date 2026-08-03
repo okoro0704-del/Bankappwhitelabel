@@ -55,8 +55,15 @@ export async function rpcJson<T>(fn: string, args: Record<string, unknown> = {})
             ? 'NOT_FOUND'
             : message.includes('ACCOUNT_INACTIVE')
               ? 'ACCOUNT_INACTIVE'
-              : 'INTERNAL_ERROR';
-    throw new ApiError(code, message, code === 'NOT_FOUND' ? 404 : code === 'UNAUTHENTICATED' ? 401 : 400);
+              : message.includes('VALIDATION_ERROR')
+                ? 'VALIDATION_ERROR'
+                : 'INTERNAL_ERROR';
+    const cleaned = message.replace(/^.*VALIDATION_ERROR:\s*/i, '').trim() || message;
+    throw new ApiError(
+      code,
+      code === 'VALIDATION_ERROR' ? cleaned : message,
+      code === 'NOT_FOUND' ? 404 : code === 'UNAUTHENTICATED' ? 401 : 400,
+    );
   }
   return data as T;
 }
