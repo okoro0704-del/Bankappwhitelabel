@@ -91,6 +91,7 @@ const sampleUser = {
     id: 'a1',
     accountNumber: '1234567890',
     accountType: 'escrow' as const,
+    productType: 'checking' as const,
     accountStatus: 'active' as const,
     balance: 120,
     currency: 'USD',
@@ -230,7 +231,7 @@ describe('admin phase 3 screens', () => {
   it('lists users and navigates to details', async () => {
     wrap(<AdminUsersPage />);
     expect((await screen.findAllByText(/casey@example.com/i)).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: /details/i })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: /^open$/i })[0]).toHaveAttribute(
       'href',
       '/admin/users/u1',
     );

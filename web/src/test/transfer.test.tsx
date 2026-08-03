@@ -34,6 +34,7 @@ const account = {
   id: 'a1',
   accountNumber: '1234567890',
   accountType: 'four_stage_verification' as const,
+  productType: 'checking' as const,
   accountStatus: 'active' as const,
   balance: 500,
   currency: 'USD',

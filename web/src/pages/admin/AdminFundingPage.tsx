@@ -10,7 +10,8 @@ import { useToast } from '../../components/ui/Toast';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import type { AdminUser, Transaction, Wallet } from '../../types/api';
 import {
-  accountTypeLabel,
+  accountBehaviorLabel,
+  productTypeLabel,
   createIdempotencyKey,
   formatAccountNumber,
   formatMoney,
@@ -175,7 +176,8 @@ export function AdminFundingPage() {
                   <strong>{fullName(selected.profile.firstName, selected.profile.lastName)}</strong>
                   <p className="muted">
                     {formatAccountNumber(selected.account.accountNumber)} ·{' '}
-                    {accountTypeLabel(selected.account.accountType)}
+                    {productTypeLabel(selected.account.productType)} ·{' '}
+                    {accountBehaviorLabel(selected.account.accountType)}
                   </p>
                 </div>
                 <Badge tone="accent">

@@ -311,6 +311,7 @@ export const api = {
         p_password: body.password?.trim() ? body.password : null,
         p_phone: body.phone ?? null,
         p_account_type: body.accountType,
+        p_product_type: body.productType,
         p_account_number: body.accountNumber?.trim() ? body.accountNumber.trim() : null,
         p_initial_balance: body.initialBalance ?? 0,
       });
@@ -342,6 +343,7 @@ export const api = {
           id: String(accountData.id),
           accountNumber: String(accountData.accountNumber),
           accountType: accountData.accountType as Account['accountType'],
+          productType: (accountData.productType as Account['productType']) ?? 'checking',
           accountStatus: accountData.accountStatus as Account['accountStatus'],
           balance: Number(accountData.balance ?? 0),
           currency: String(accountData.currency ?? 'USD'),

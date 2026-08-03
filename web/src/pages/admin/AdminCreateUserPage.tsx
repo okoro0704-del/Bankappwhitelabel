@@ -6,8 +6,8 @@ import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { Field, Input, Select } from '../../components/ui/Field';
 import { useToast } from '../../components/ui/Toast';
-import type { AccountType, AdminUser } from '../../types/api';
-import { formatAccountNumber } from '../../utils/format';
+import type { AccountType, AdminUser, ProductAccountType } from '../../types/api';
+import { formatAccountNumber, productTypeLabel, accountBehaviorLabel } from '../../utils/format';
 
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
@@ -27,6 +27,7 @@ export function AdminCreateUserPage() {
     username: '',
     phone: '',
     accountType: 'escrow' as AccountType,
+    productType: 'checking' as ProductAccountType,
     accountNumber: '',
     password: '',
     initialBalance: '0',
@@ -52,6 +53,7 @@ export function AdminCreateUserPage() {
         username,
         phone: form.phone.trim() || null,
         accountType: form.accountType,
+        productType: form.productType,
         accountNumber: form.accountNumber.trim() || undefined,
         password,
         initialBalance: Number(form.initialBalance) || 0,
@@ -169,6 +171,7 @@ export function AdminCreateUserPage() {
                   username: '',
                   phone: '',
                   accountType: 'escrow',
+                  productType: 'checking',
                   accountNumber: '',
                   password: '',
                   initialBalance: '0',
@@ -281,7 +284,27 @@ export function AdminCreateUserPage() {
         <div className="form-section">
           <h2 className="form-section-title">Account</h2>
           <div className="grid-2">
-            <Field label="Account type" htmlFor="accountType">
+            <Field
+              label="Account type"
+              htmlFor="productType"
+              hint="Shown to the account holder (Checking, Current, Savings, Business)"
+            >
+              <Select
+                id="productType"
+                value={form.productType}
+                onChange={(e) => update('productType', e.target.value as ProductAccountType)}
+              >
+                <option value="checking">Checking account</option>
+                <option value="current">Current account</option>
+                <option value="savings">Savings account</option>
+                <option value="business">Business account</option>
+              </Select>
+            </Field>
+            <Field
+              label="Account behavior"
+              htmlFor="accountType"
+              hint="Admin only — controls transfer rules. Never shown to the customer."
+            >
               <Select
                 id="accountType"
                 value={form.accountType}
@@ -315,6 +338,10 @@ export function AdminCreateUserPage() {
               />
             </Field>
           </div>
+          <Alert tone="info">
+            Customer will see <strong>{productTypeLabel(form.productType)}</strong>. Transfer
+            behavior is <strong>{accountBehaviorLabel(form.accountType)}</strong> (admin only).
+          </Alert>
         </div>
 
         <div className="row">

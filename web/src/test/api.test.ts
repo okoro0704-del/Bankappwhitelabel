@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError, getFriendlyErrorMessage } from '../api/errors';
 import { mapProfile, mapTransfer, mapWallet } from '../api/mappers';
 import { extractTenantLabelUnderBaseDomain } from '../tenant/resolve';
-import { accountTypeLabel, customerAccountTypeLabel, formatMoney } from '../utils/format';
+import { accountTypeLabel, customerAccountTypeLabel, productTypeLabel, formatMoney } from '../utils/format';
 
 describe('Supabase row mappers', () => {
   it('maps profile and wallet rows to camelCase UI types', () => {
@@ -91,6 +91,10 @@ describe('format helpers', () => {
     expect(customerAccountTypeLabel('escrow')).toBe('Checking account');
     expect(customerAccountTypeLabel('one_time_transfer')).toBe('Checking account');
     expect(customerAccountTypeLabel('four_stage_verification')).toBe('Checking account');
+    expect(productTypeLabel('checking')).toBe('Checking account');
+    expect(productTypeLabel('current')).toBe('Current account');
+    expect(productTypeLabel('savings')).toBe('Savings account');
+    expect(customerAccountTypeLabel('savings')).toBe('Savings account');
   });
 
   it('formats money from API amounts', () => {

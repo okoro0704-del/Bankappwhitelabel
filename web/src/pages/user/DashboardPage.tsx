@@ -9,7 +9,7 @@ import { TransactionDetailModal } from '../../components/TransactionDetailModal'
 import { TransferDetailModal } from '../../components/TransferDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
-  customerAccountTypeLabel,
+  productTypeLabel,
   amountSignClass,
   formatAccountNumber,
   formatDate,
@@ -86,7 +86,7 @@ export function UserDashboardPage() {
                 </p>
                 <p className="muted">
                   {formatAccountNumber(account.data.accountNumber)} ·{' '}
-                  {customerAccountTypeLabel(account.data.accountType)}
+                  {productTypeLabel(account.data.productType)}
                 </p>
                 <StatusBadge status={account.data.accountStatus} />
               </div>

@@ -64,14 +64,19 @@ export function mapWallet(row: Record<string, unknown>): Wallet {
 }
 
 export function mapAccount(row: Record<string, unknown>, wallet?: Wallet | null): Account {
+  const productRaw = String(row.product_type ?? row.productType ?? 'checking');
+  const productType = (
+    ['checking', 'current', 'savings', 'business'].includes(productRaw) ? productRaw : 'checking'
+  ) as Account['productType'];
   return {
     id: String(row.id),
-    accountNumber: String(row.account_number),
-    accountType: row.account_type as Account['accountType'],
-    accountStatus: row.account_status as Account['accountStatus'],
-    balance: wallet?.balance ?? 0,
-    currency: wallet?.currency ?? 'USD',
-    oneTimeTransferUsed: Boolean(row.one_time_transfer_used),
+    accountNumber: String(row.account_number ?? row.accountNumber),
+    accountType: (row.account_type ?? row.accountType) as Account['accountType'],
+    productType,
+    accountStatus: (row.account_status ?? row.accountStatus) as Account['accountStatus'],
+    balance: wallet?.balance ?? Number(row.balance ?? 0),
+    currency: wallet?.currency ?? String(row.currency ?? 'USD'),
+    oneTimeTransferUsed: Boolean(row.one_time_transfer_used ?? row.oneTimeTransferUsed),
   };
 }
 

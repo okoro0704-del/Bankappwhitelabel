@@ -183,6 +183,7 @@ describe('dashboard states', () => {
       id: 'a1',
       accountNumber: '1234567890',
       accountType: 'escrow',
+      productType: 'checking',
       accountStatus: 'active',
       balance: 250,
       currency: 'USD',
@@ -227,6 +228,7 @@ describe('account rendering', () => {
       id: 'a1',
       accountNumber: '1234567890',
       accountType: 'one_time_transfer',
+      productType: 'current',
       accountStatus: 'active',
       balance: 10,
       currency: 'USD',
@@ -254,7 +256,7 @@ describe('account rendering', () => {
     });
 
     renderWithProviders(<AccountPage />);
-    expect(await screen.findAllByText(/checking account/i)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/current account/i)).not.toHaveLength(0);
     expect(screen.getByText(/1234 567 890/)).toBeInTheDocument();
   });
 });
@@ -318,6 +320,7 @@ describe('admin wallet funding flow', () => {
             id: 'a1',
             accountNumber: '1234567890',
             accountType: 'escrow',
+            productType: 'checking',
             accountStatus: 'active',
             balance: 100,
             currency: 'USD',

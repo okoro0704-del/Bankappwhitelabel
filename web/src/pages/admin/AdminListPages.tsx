@@ -11,7 +11,8 @@ import { TransferDetailModal } from '../../components/TransferDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useAuth } from '../../auth/AuthProvider';
 import {
-  accountTypeLabel,
+  accountBehaviorLabel,
+  productTypeLabel,
   formatAccountNumber,
   formatDate,
   formatMoney,
@@ -110,7 +111,7 @@ export function AdminAccountsPage() {
                     <tr key={row.account.id}>
                       <td>{formatAccountNumber(row.account.accountNumber)}</td>
                       <td>{fullName(row.profile.firstName, row.profile.lastName)}</td>
-                      <td>{accountTypeLabel(row.account.accountType)}</td>
+                      <td>{productTypeLabel(row.account.productType)}</td>
                       <td>
                         <StatusBadge status={row.account.accountStatus} />
                       </td>
@@ -136,7 +137,8 @@ export function AdminAccountsPage() {
                   <div className="mobile-meta">
                     <span>{fullName(row.profile.firstName, row.profile.lastName)}</span>
                     <span>
-                      {accountTypeLabel(row.account.accountType)} ·{' '}
+                      {productTypeLabel(row.account.productType)} ·{' '}
+                      {accountBehaviorLabel(row.account.accountType)} ·{' '}
                       {formatMoney(row.account.balance, row.account.currency)}
                     </span>
                   </div>

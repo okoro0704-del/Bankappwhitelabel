@@ -5,7 +5,7 @@ import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
-  customerAccountTypeLabel,
+  productTypeLabel,
   formatAccountNumber,
   formatDate,
   formatMoney,
@@ -72,7 +72,7 @@ export function AccountPage() {
             </div>
             <div>
               <dt>Account</dt>
-              <dd>{customerAccountTypeLabel(data.accountType)}</dd>
+              <dd>{productTypeLabel(data.productType)}</dd>
             </div>
             <div>
               <dt>Status</dt>
@@ -119,8 +119,8 @@ export function AccountPage() {
       </div>
 
       <Alert tone="info">
-        Your account is shown as a checking account. Transfer rules are applied securely in the
-        background when you send money.
+        Your account is shown as a {productTypeLabel(data.productType).toLowerCase()}. Transfer
+        rules are applied securely in the background when you send money.
       </Alert>
     </div>
   );

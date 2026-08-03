@@ -1,6 +1,11 @@
 export type UserRole = 'admin' | 'user';
 export type AccountStatus = 'active' | 'suspended';
+/** Admin-only transfer behavior (backend processing mode). */
 export type AccountType = 'escrow' | 'one_time_transfer' | 'four_stage_verification';
+/** Customer-facing account product label. */
+export type ProductAccountType = 'checking' | 'current' | 'savings' | 'business';
+/** @deprecated Prefer AccountType for behavior; alias kept for clarity in UI code. */
+export type AccountBehavior = AccountType;
 
 export interface ApiErrorBody {
   error: {
@@ -52,7 +57,10 @@ export interface Profile {
 export interface Account {
   id: string;
   accountNumber: string;
+  /** Admin-only transfer behavior. */
   accountType: AccountType;
+  /** Customer-facing product (Checking, Current, Savings, Business). */
+  productType: ProductAccountType;
   accountStatus: AccountStatus;
   balance: number;
   currency: string;
@@ -153,7 +161,10 @@ export interface CreateUserRequest {
   email: string;
   phone?: string | null;
   username: string;
+  /** Admin-only transfer behavior. */
   accountType: AccountType;
+  /** Customer-facing product type. */
+  productType: ProductAccountType;
   accountNumber?: string;
   password?: string;
   initialBalance?: number;

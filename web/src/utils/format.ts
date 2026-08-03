@@ -1,4 +1,4 @@
-import type { AccountType } from '../types/api';
+import type { AccountType, ProductAccountType } from '../types/api';
 
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'accent';
 
@@ -43,8 +43,8 @@ export function truncateMiddle(value: string, head = 10, tail = 6): string {
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
-/** Backend/admin labels for account processing modes. */
-export function accountTypeLabel(type: AccountType | string): string {
+/** Admin-only labels for transfer behavior modes. */
+export function accountBehaviorLabel(type: AccountType | string): string {
   switch (type) {
     case 'escrow':
       return 'Escrow';
@@ -57,11 +57,42 @@ export function accountTypeLabel(type: AccountType | string): string {
   }
 }
 
+/** @deprecated Use accountBehaviorLabel. */
+export function accountTypeLabel(type: AccountType | string): string {
+  return accountBehaviorLabel(type);
+}
+
+/** Customer-facing product labels. */
+export function productTypeLabel(type?: ProductAccountType | string | null): string {
+  switch (type) {
+    case 'checking':
+      return 'Checking account';
+    case 'current':
+      return 'Current account';
+    case 'savings':
+      return 'Savings account';
+    case 'business':
+      return 'Business account';
+    default:
+      return 'Checking account';
+  }
+}
+
 /**
- * Customer-facing account type. Backend modes stay hidden from account holders.
+ * Customer-facing account type. Prefer productType; never expose backend behavior.
  */
-export function customerAccountTypeLabel(_type?: AccountType | string): string {
-  return 'Checking account';
+export function customerAccountTypeLabel(
+  productOrBehavior?: ProductAccountType | AccountType | string | null,
+): string {
+  if (
+    productOrBehavior === 'checking' ||
+    productOrBehavior === 'current' ||
+    productOrBehavior === 'savings' ||
+    productOrBehavior === 'business'
+  ) {
+    return productTypeLabel(productOrBehavior);
+  }
+  return productTypeLabel('checking');
 }
 
 export function statusLabel(status: string): string {

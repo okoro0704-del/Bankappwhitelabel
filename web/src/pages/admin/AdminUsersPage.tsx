@@ -7,7 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Field';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
-  accountTypeLabel,
+  accountBehaviorLabel,
+  productTypeLabel,
   formatAccountNumber,
   formatDate,
   formatMoney,
@@ -71,7 +72,7 @@ export function AdminUsersPage() {
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
-            <option value="all">All types</option>
+            <option value="all">All behaviors</option>
             <option value="escrow">Escrow</option>
             <option value="one_time_transfer">One-time transfer</option>
             <option value="four_stage_verification">Four-stage verification</option>
@@ -115,6 +116,7 @@ export function AdminUsersPage() {
                     <th>Email</th>
                     <th>Account</th>
                     <th>Type</th>
+                    <th>Behavior</th>
                     <th>Status</th>
                     <th>Balance</th>
                     <th>Created</th>
@@ -127,7 +129,8 @@ export function AdminUsersPage() {
                       <td>{fullName(row.profile.firstName, row.profile.lastName)}</td>
                       <td>{row.profile.email}</td>
                       <td>{formatAccountNumber(row.account.accountNumber)}</td>
-                      <td>{accountTypeLabel(row.account.accountType)}</td>
+                      <td>{productTypeLabel(row.account.productType)}</td>
+                      <td>{accountBehaviorLabel(row.account.accountType)}</td>
                       <td>
                         <StatusBadge status={row.account.accountStatus} />
                       </td>
@@ -160,7 +163,8 @@ export function AdminUsersPage() {
                     <span>{row.profile.email}</span>
                     <span>
                       {formatAccountNumber(row.account.accountNumber)} ·{' '}
-                      {accountTypeLabel(row.account.accountType)}
+                      {productTypeLabel(row.account.productType)} ·{' '}
+                      {accountBehaviorLabel(row.account.accountType)}
                     </span>
                     <span>{formatMoney(row.account.balance, row.account.currency)}</span>
                     <span>{formatDate(row.profile.createdAt)}</span>

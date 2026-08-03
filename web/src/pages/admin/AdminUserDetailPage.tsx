@@ -8,7 +8,8 @@ import { TransactionDetailModal } from '../../components/TransactionDetailModal'
 import { useToast } from '../../components/ui/Toast';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
-  accountTypeLabel,
+  accountBehaviorLabel,
+  productTypeLabel,
   amountSignClass,
   formatAccountNumber,
   formatDate,
@@ -256,7 +257,11 @@ export function AdminUserDetailPage() {
             </div>
             <div>
               <dt>Account type</dt>
-              <dd>{accountTypeLabel(account.accountType)}</dd>
+              <dd>{productTypeLabel(account.productType)}</dd>
+            </div>
+            <div>
+              <dt>Account behavior</dt>
+              <dd>{accountBehaviorLabel(account.accountType)}</dd>
             </div>
             <div>
               <dt>Account status</dt>
