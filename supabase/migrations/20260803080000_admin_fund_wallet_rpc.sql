@@ -1,5 +1,64 @@
 -- Tenant admin wallet funding + profile status via RPC (no Edge Function required).
 
+-- Allow tenant admins to mutate wallets/ledger via SECURITY DEFINER RPCs.
+create or replace function public.protect_wallet_privileges()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.balance is distinct from old.balance
+      or new.account_id is distinct from old.account_id
+      or new.currency is distinct from old.currency
+    then
+      if auth.role() <> 'service_role'
+        and not public.is_master_admin(auth.uid())
+        and not public.is_admin(auth.uid())
+      then
+        raise exception 'Direct wallet balance or ownership changes are not permitted';
+      end if;
+    end if;
+  elsif tg_op = 'INSERT' then
+    if auth.role() <> 'service_role'
+      and not public.is_master_admin(auth.uid())
+      and not public.is_admin(auth.uid())
+    then
+      raise exception 'Direct wallet inserts are not permitted';
+    end if;
+  elsif tg_op = 'DELETE' then
+    if auth.role() <> 'service_role'
+      and not public.is_master_admin(auth.uid())
+      and not public.is_admin(auth.uid())
+    then
+      raise exception 'Direct wallet deletes are not permitted';
+    end if;
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.protect_transaction_privileges()
+returns trigger
+language plpgsql
+as $$
+begin
+  if auth.role() <> 'service_role'
+    and not public.is_master_admin(auth.uid())
+    and not public.is_admin(auth.uid())
+  then
+    raise exception 'Direct transaction mutations are not permitted';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
 -- Allow tenant admins to change profile status (suspend/activate) via SECURITY DEFINER RPCs.
 create or replace function public.protect_profile_privileges()
 returns trigger
