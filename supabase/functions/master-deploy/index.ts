@@ -21,7 +21,10 @@ function buildDeployment(
   const hostname = `${subdomain}.${baseDomain}`;
   return {
     hostname,
+    homeUrl: `https://${hostname}/`,
     loginUrl: `https://${hostname}/login`,
+    adminDashboardUrl: `https://${hostname}/admin`,
+    adminHomeUrl: `https://${hostname}/admin/home`,
     baseDomain,
     dnsTarget,
     dnsStatus: tenant.dns_status,

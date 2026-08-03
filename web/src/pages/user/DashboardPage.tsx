@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
@@ -9,6 +9,7 @@ import { TransactionDetailModal } from '../../components/TransactionDetailModal'
 import { TransferDetailModal } from '../../components/TransferDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { clearActiveTransferId } from '../../transfer/session';
+import { isVerificationStatus } from '../../transfer/visualProgress';
 import {
   productTypeLabel,
   amountSignClass,
@@ -20,6 +21,7 @@ import {
 import type { Transaction, Transfer } from '../../types/api';
 
 export function UserDashboardPage() {
+  const navigate = useNavigate();
   const { appUser } = useAuth();
   const [hideBalance, setHideBalance] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -206,25 +208,42 @@ export function UserDashboardPage() {
           ) : null}
           {transfers.data && transfers.data.items.length > 0 ? (
             <div className="stack-sm">
-              {transfers.data.items.map((tr) => (
-                <button
-                  key={tr.id}
-                  type="button"
-                  className="list-row-btn"
-                  onClick={() => setSelectedTransfer(tr)}
-                >
-                  <div className="mobile-row-top">
-                    <strong>{formatMoney(tr.amount, currency)}</strong>
-                    <StatusBadge status={tr.status} />
-                  </div>
-                  <div className="mobile-meta">
-                    <span>{tr.recipient.name}</span>
-                    <span>
-                      {tr.reference} · {formatDate(tr.createdAt)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {transfers.data.items.map((tr) => {
+                const pending = isVerificationStatus(tr.status);
+                return (
+                  <button
+                    key={tr.id}
+                    type="button"
+                    className="list-row-btn"
+                    onClick={() => {
+                      if (pending) {
+                        navigate(`/app/transfer?transferId=${encodeURIComponent(tr.id)}`);
+                        return;
+                      }
+                      setSelectedTransfer(tr);
+                    }}
+                  >
+                    <div className="mobile-row-top">
+                      <span className="row" style={{ gap: '0.45rem', alignItems: 'center' }}>
+                        {pending ? (
+                          <span className="xfer-pending-icon" title="Pending" aria-hidden>
+                            ◷
+                          </span>
+                        ) : null}
+                        <strong>{formatMoney(tr.amount, currency)}</strong>
+                      </span>
+                      <StatusBadge status={tr.status} />
+                    </div>
+                    <div className="mobile-meta">
+                      <span>{tr.recipient.name}</span>
+                      <span>
+                        {pending ? 'Tap to continue · ' : ''}
+                        {tr.reference} · {formatDate(tr.createdAt)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
         </div>

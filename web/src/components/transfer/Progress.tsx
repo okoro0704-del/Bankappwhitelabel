@@ -65,7 +65,6 @@ export function TransferProgressBar({
     <div className="xfer-progress" aria-hidden={false}>
       <div className="xfer-progress-meta">
         <span>{label}</span>
-        <span className="muted">{display}%</span>
       </div>
       <div
         className="xfer-progress-track"

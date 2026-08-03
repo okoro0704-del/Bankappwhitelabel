@@ -20,6 +20,7 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminCreateUserPage } from './pages/admin/AdminCreateUserPage';
 import { AdminUserDetailPage } from './pages/admin/AdminUserDetailPage';
 import { AdminFundingPage } from './pages/admin/AdminFundingPage';
+import { AdminHomePage } from './pages/admin/AdminHomePage';
 import {
   AdminAccountsPage,
   AdminSettingsPage,
@@ -108,6 +109,7 @@ export const router = createBrowserRouter([
                 element: <AdminLayout />,
                 children: [
                   { index: true, element: <AdminDashboardPage /> },
+                  { path: 'home', element: <AdminHomePage /> },
                   { path: 'users', element: <AdminUsersPage /> },
                   { path: 'users/new', element: <AdminCreateUserPage /> },
                   { path: 'users/:userId', element: <AdminUserDetailPage /> },

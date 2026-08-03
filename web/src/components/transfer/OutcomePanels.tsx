@@ -4,7 +4,6 @@ import { Badge } from '../ui/Feedback';
 import { formatAccountNumber, formatDate, formatMoney, statusLabel } from '../../utils/format';
 import type { Transfer, TransferActionResponse, Wallet } from '../../types/api';
 import {
-  progressGateForStage,
   verificationCodeSubtitle,
   verificationCodeTitle,
 } from '../../transfer/visualProgress';
@@ -141,7 +140,7 @@ export function ProcessingPanel({
       <TransferProgressBar
         percent={progressPercent}
         animateFrom={animateFrom}
-        label="Transfer progress"
+        label="Processing"
         onReached={onProgressReached}
       />
       <TransferDetailsCard transfer={transfer} action={action} currency={currency} />
@@ -159,7 +158,7 @@ export function VerificationPanel({
   onSubmit,
   submitting,
   error,
-  onCancel,
+  onFinishLater,
 }: {
   stage: number;
   currency: string;
@@ -170,11 +169,10 @@ export function VerificationPanel({
   onSubmit: () => void;
   submitting: boolean;
   error: string | null;
-  onCancel?: () => void;
+  onFinishLater?: () => void;
 }) {
   const title = verificationCodeTitle(stage);
   const subtitle = verificationCodeSubtitle(stage);
-  const progressPercent = progressGateForStage(stage);
 
   return (
     <div className="card card-pad stack">
@@ -182,9 +180,6 @@ export function VerificationPanel({
         <h2>{title}</h2>
         <p className="page-subtitle">{subtitle}</p>
       </div>
-
-      {/* Never show "Stage X of 4" — customers only see the code title + progress %. */}
-      <TransferProgressBar percent={progressPercent} label="Transfer progress" />
 
       <VerificationCodeInput
         value={code}
@@ -195,16 +190,24 @@ export function VerificationPanel({
         hint="Enter the 6-digit code provided by your bank"
       />
 
+      <p className="field-hint" style={{ marginTop: '-0.25rem' }}>
+        Have no code? Contact bank to get code and complete your transfer
+      </p>
+
       <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
         <Button type="button" disabled={submitting || code.length !== 6} onClick={onSubmit}>
           {submitting ? 'Verifying…' : 'Continue'}
         </Button>
-        {onCancel ? (
-          <Button type="button" variant="ghost" disabled={submitting} onClick={onCancel}>
-            Cancel transfer
+        {onFinishLater ? (
+          <Button type="button" variant="ghost" disabled={submitting} onClick={onFinishLater}>
+            Finish later
           </Button>
         ) : null}
       </div>
+
+      <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+        You can leave anytime and resume this pending transfer from your dashboard.
+      </p>
 
       <TransferDetailsCard transfer={transfer} action={action} currency={currency} />
     </div>

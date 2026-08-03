@@ -96,6 +96,11 @@ export function customerAccountTypeLabel(
 }
 
 export function statusLabel(status: string): string {
+  const value = status.toLowerCase();
+  // Customer-facing: never expose "Verification Stage N" in activity lists.
+  if (value.startsWith('verification') || value === 'verification_required') {
+    return 'Pending';
+  }
   return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 

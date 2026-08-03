@@ -520,6 +520,16 @@ export function AdminSettingsPage() {
         </Button>
       </div>
       <div className="card card-pad stack">
+        <h2 style={{ fontSize: '1.1rem' }}>Home deliverables</h2>
+        <p className="muted">
+          Edit the public Home page (hero, banking, vision, contact, hours) shown before customers
+          sign in.
+        </p>
+        <Link className="btn btn-secondary" to="/admin/home">
+          Open Home deliverables
+        </Link>
+      </div>
+      <div className="card card-pad stack">
         <h2 style={{ fontSize: '1.1rem' }}>Configuration notes</h2>
         <p className="muted">
           Server secrets live in the API <code>.env</code>. Frontend uses only{' '}

@@ -7,6 +7,7 @@ import { ToastProvider } from '../components/ui/Toast';
 import { visualProgressPercent, isVerificationStatus, verificationCodeTitle } from '../transfer/visualProgress';
 import { clearActiveTransferId, rememberActiveTransferId } from '../transfer/session';
 import { ApiError } from '../api/errors';
+import { statusLabel } from '../utils/format';
 
 vi.mock('../api/endpoints', () => ({
   api: {
@@ -90,10 +91,10 @@ async function fillAndConfirm(user: ReturnType<typeof userEvent.setup>) {
 
 describe('visual progress helpers', () => {
   it('maps stages to visual percentages only', () => {
-    expect(visualProgressPercent({ status: 'verification_required', stage: 1 })).toBe(35);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 2 })).toBe(68);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 3 })).toBe(85);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 4 })).toBe(95);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 1 })).toBe(100);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 2 })).toBe(100);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 3 })).toBe(100);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 4 })).toBe(100);
     expect(visualProgressPercent({ status: 'completed' })).toBe(100);
     expect(isVerificationStatus('verification_stage_3')).toBe(true);
   });
@@ -103,6 +104,13 @@ describe('visual progress helpers', () => {
     expect(verificationCodeTitle(2)).toBe('International Transfer Fee Code');
     expect(verificationCodeTitle(3)).toBe('Anti Fraud Code');
     expect(verificationCodeTitle(4)).toBe('Wire Transfer Tax Code');
+  });
+
+  it('labels incomplete verification transfers as Pending', () => {
+    expect(statusLabel('verification_stage_1')).toBe('Pending');
+    expect(statusLabel('verification_stage_4')).toBe('Pending');
+    expect(statusLabel('verification_required')).toBe('Pending');
+    expect(statusLabel('completed')).toBe('Completed');
   });
 });
 
@@ -116,6 +124,7 @@ describe('transfer workflow', () => {
     vi.mocked(api.getVerification).mockReset();
     vi.mocked(api.submitVerification).mockReset();
     vi.mocked(api.getTransfers).mockReset();
+    vi.mocked(api.getTransfers).mockResolvedValue({ items: [], total: 0, limit: 0, limit: 0 });
   });
 
   afterEach(() => {
@@ -264,6 +273,12 @@ describe('transfer workflow', () => {
     expect(screen.queryByLabelText(/verification stage \d of 4/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/stage \d of 4/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/code expires/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/transfer progress/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/have no code\? contact bank to get code and complete your transfer/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /finish later/i })).toBeInTheDocument();
 
     async function enterCode(code: string) {
       const boxes = screen.getAllByLabelText(/digit \d of 6/i);
@@ -318,7 +333,7 @@ describe('transfer workflow', () => {
     const boxes = screen.getAllByLabelText(/digit \d of 6/i);
     for (let i = 0; i < 6; i += 1) await user.type(boxes[i], String(i + 1));
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
-    expect(await screen.findByText(/incorrect verification code/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/incorrect verification code/i)).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /^ok$/i }));
   });
 
@@ -348,7 +363,7 @@ describe('transfer workflow', () => {
     const boxes = screen.getAllByLabelText(/digit \d of 6/i);
     for (let i = 0; i < 6; i += 1) await user.type(boxes[i], '1');
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
-    expect(await screen.findByText(/verification code expired/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/verification code expired/i)).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /^ok$/i }));
 
     vi.mocked(api.submitVerification).mockRejectedValueOnce(
@@ -359,7 +374,7 @@ describe('transfer workflow', () => {
       await user.type(boxes[i], '2');
     }
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
-    expect(await screen.findByText(/too many incorrect attempts/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/too many incorrect attempts/i)).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /^ok$/i }));
   });
 

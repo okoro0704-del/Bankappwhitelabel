@@ -36,8 +36,10 @@ import type {
   MasterTenantSummary,
   TenantConfiguration,
   TenantDeploymentInfo,
+  TenantHomeContent,
   UpdateTenantRequest,
 } from '../types/tenant';
+import { sanitizeHomeContent } from '../tenant/homeContent';
 import { extractTenantLabelUnderBaseDomain, isPlatformBaseHost } from '../tenant/resolve';
 import {
   checkTls,
@@ -534,6 +536,101 @@ export const api = {
     }
   },
 
+  adminGetHomeContent: async (): Promise<{
+    applicationName: string;
+    supportEmail: string | null;
+    supportPhone: string | null;
+    homeContent: TenantHomeContent;
+  }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_get_home_content', {});
+      const applicationName = String(data.applicationName ?? 'Application');
+      return {
+        applicationName,
+        supportEmail: (data.supportEmail as string | null) ?? null,
+        supportPhone: (data.supportPhone as string | null) ?? null,
+        homeContent: sanitizeHomeContent(data.homeContent, applicationName),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Home deliverables RPC is missing. Run supabase/migrations/20260803270000_tenant_home_content_deliverables.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  adminUpdateHomeContent: async (
+    homeContent: TenantHomeContent,
+  ): Promise<{
+    applicationName: string;
+    supportEmail?: string | null;
+    supportPhone?: string | null;
+    homeContent: TenantHomeContent;
+    message: string;
+  }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_update_home_content', {
+        p_home: homeContent,
+      });
+      const applicationName = String(data.applicationName ?? 'Application');
+      return {
+        applicationName,
+        supportEmail: (data.supportEmail as string | null | undefined) ?? undefined,
+        supportPhone: (data.supportPhone as string | null | undefined) ?? undefined,
+        homeContent: sanitizeHomeContent(data.homeContent, applicationName),
+        message: String(data.message ?? 'Home deliverables saved'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Home deliverables RPC is missing. Run supabase/migrations/20260803270000_tenant_home_content_deliverables.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  adminUpdateHomeSupport: async (
+    supportEmail: string,
+    supportPhone: string,
+  ): Promise<{ supportEmail: string | null; supportPhone: string | null; message: string }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_update_home_support', {
+        p_support_email: supportEmail,
+        p_support_phone: supportPhone,
+      });
+      return {
+        supportEmail: (data.supportEmail as string | null) ?? null,
+        supportPhone: (data.supportPhone as string | null) ?? null,
+        message: String(data.message ?? 'Home contact details saved'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Home deliverables RPC is missing. Run supabase/migrations/20260803270000_tenant_home_content_deliverables.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
   adminBackfillActivationCodes: async (): Promise<{ created: number; message: string }> => {
     try {
       const data = await rpcJson<Record<string, unknown>>('admin_backfill_activation_codes', {});
@@ -878,6 +975,7 @@ export const api = {
     username: string;
     email: string;
     temporaryPassword: string;
+    adminLoginEnabled?: boolean;
     message: string;
   }> => {
     try {
@@ -894,6 +992,7 @@ export const api = {
         username: String(data.username ?? username),
         email: String(data.email ?? body.email ?? ''),
         temporaryPassword: String(data.temporaryPassword ?? ''),
+        adminLoginEnabled: data.adminLoginEnabled !== false,
         message: String(data.message ?? 'Admin login enabled.'),
       };
     } catch (error) {
@@ -907,6 +1006,33 @@ export const api = {
         'Admin login RPC is missing. Run supabase/migrations/20260803030000_master_provision_tenant_admin_rpc.sql in the Supabase SQL Editor, then click Enable admin login again.',
         400,
       );
+    }
+  },
+
+  masterDisableTenantAdminLogin: async (
+    tenantId: string,
+  ): Promise<{ tenantId: string; adminLoginEnabled: boolean; message: string }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('master_disable_tenant_admin_login', {
+        p_tenant_id: tenantId,
+      });
+      return {
+        tenantId: String(data.tenantId ?? tenantId),
+        adminLoginEnabled: Boolean(data.adminLoginEnabled),
+        message: String(data.message ?? 'Admin login disabled.'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Disable-admin-login RPC is missing. Run supabase/migrations/20260803280000_admin_login_enable_disable.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
     }
   },
 

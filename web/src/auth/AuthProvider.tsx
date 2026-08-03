@@ -21,7 +21,11 @@ interface AuthState {
   session: Session | null;
   appUser: SessionUser | null;
   error: string | null;
-  signIn: (usernameOrEmail: string, password: string) => Promise<SessionUser>;
+  signIn: (
+    usernameOrEmail: string,
+    password: string,
+    options?: { allowUsernameAsPassword?: boolean },
+  ) => Promise<SessionUser>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshAppUser: () => Promise<void>;
@@ -74,6 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (gen !== hydrateGen.current) return;
       setAppUser(null);
       if (err instanceof ApiError && err.code === 'ACCOUNT_INACTIVE') {
+        setError(getFriendlyErrorMessage(err));
+        await getSupabase().auth.signOut();
+        setSession(null);
+        return;
+      }
+      if (err instanceof ApiError && err.code === 'ADMIN_LOGIN_DISABLED') {
         setError(getFriendlyErrorMessage(err));
         await getSupabase().auth.signOut();
         setSession(null);
@@ -137,11 +147,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [hydrate]);
 
   const signIn = useCallback(
-    async (usernameOrEmail: string, password: string) => {
+    async (
+      usernameOrEmail: string,
+      password: string,
+      options?: { allowUsernameAsPassword?: boolean },
+    ) => {
       setError(null);
       const identifier = usernameOrEmail.trim();
       let email = identifier;
-      const passwordCandidates = buildLoginPasswordCandidates(identifier, password);
+      const passwordCandidates = buildLoginPasswordCandidates(identifier, password, {
+        allowUsernameAsPassword: options?.allowUsernameAsPassword,
+      });
 
       if (!identifier.includes('@')) {
         const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
@@ -205,6 +221,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             'Sign-in succeeded but no bank profile is linked. In Web Finance, use “Enable admin login” on the application.';
           setError(message);
           throw new ApiError('INVALID_CREDENTIALS', message, 401);
+        }
+        if (err instanceof ApiError && err.code === 'ADMIN_LOGIN_DISABLED') {
+          await getSupabase().auth.signOut();
+          setSession(null);
+          const message = getFriendlyErrorMessage(err);
+          setError(message);
+          throw err;
         }
         setError(getFriendlyErrorMessage(err));
         throw err;

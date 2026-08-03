@@ -13,6 +13,7 @@ import type {
   TenantConfiguration,
   TenantDeploymentInfo,
 } from '../types/tenant';
+import { sanitizeHomeContent } from '../tenant/homeContent';
 
 export function mapProfile(row: Record<string, unknown>): Profile {
   return {
@@ -137,8 +138,10 @@ export function mapTransfer(row: Record<string, unknown>): Transfer {
 }
 
 export function mapBranding(row: Record<string, unknown> | null, fallbackName: string): TenantBranding {
+  const applicationName = String(row?.application_name ?? row?.applicationName ?? fallbackName);
+  const homeRaw = row?.home_content ?? row?.homeContent ?? null;
   return {
-    applicationName: String(row?.application_name ?? row?.applicationName ?? fallbackName),
+    applicationName,
     logoUrl: (row?.logo_url as string | null | undefined) ?? (row?.logoUrl as string | null) ?? null,
     faviconUrl:
       (row?.favicon_url as string | null | undefined) ?? (row?.faviconUrl as string | null) ?? null,
@@ -161,6 +164,7 @@ export function mapBranding(row: Record<string, unknown> | null, fallbackName: s
       (row?.support_phone as string | null | undefined) ??
       (row?.supportPhone as string | null) ??
       null,
+    homeContent: sanitizeHomeContent(homeRaw, applicationName),
   };
 }
 
@@ -186,8 +190,10 @@ export function buildDeploymentInfo(
   const hostname = `${subdomain}.${baseDomain}`;
   return {
     hostname,
+    homeUrl: `https://${hostname}/`,
     loginUrl: `https://${hostname}/login`,
     adminDashboardUrl: `https://${hostname}/admin`,
+    adminHomeUrl: `https://${hostname}/admin/home`,
     baseDomain,
     dnsTarget,
     dnsStatus: tenant.dns_status as TenantDeploymentInfo['dnsStatus'],
@@ -246,6 +252,7 @@ export function mapMasterDetailRpc(
       subdomain: String(tenant.subdomain),
       handoffTempPassword: (tenant.handoffTempPassword as string | null) ?? null,
       handoffAdminUsername: (tenant.handoffAdminUsername as string | null) ?? null,
+      adminLoginEnabled: Boolean(tenant.adminLoginEnabled ?? tenant.admin_login_enabled),
       createdAt: String(tenant.createdAt),
       updatedAt: String(tenant.updatedAt),
     },

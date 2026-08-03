@@ -180,6 +180,10 @@ export function AdminDashboardPage() {
           <strong>Users</strong>
           <span className="muted">Search and manage profiles</span>
         </Link>
+        <Link className="quick-action" to="/admin/home">
+          <strong>Home deliverables</strong>
+          <span className="muted">Edit the public Home page</span>
+        </Link>
         <Link className="quick-action" to="/admin/funding">
           <strong>Wallet funding</strong>
           <span className="muted">Credit wallets</span>

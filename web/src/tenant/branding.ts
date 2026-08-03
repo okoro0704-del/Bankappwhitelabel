@@ -1,5 +1,6 @@
 import type { TenantBranding } from '../types/tenant';
 import { DEFAULT_NORTHLINE_BRANDING } from '../types/tenant';
+import { sanitizeHomeContent } from './homeContent';
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
@@ -38,8 +39,9 @@ export function sanitizePublicUrl(value: string | null | undefined): string | nu
 
 export function sanitizeBranding(branding: TenantBranding): TenantBranding {
   const defaults = DEFAULT_NORTHLINE_BRANDING;
+  const applicationName = branding.applicationName?.trim() || defaults.applicationName;
   return {
-    applicationName: branding.applicationName?.trim() || defaults.applicationName,
+    applicationName,
     logoUrl: sanitizePublicUrl(branding.logoUrl),
     faviconUrl: sanitizePublicUrl(branding.faviconUrl),
     primaryColor: sanitizeHexColor(branding.primaryColor, defaults.primaryColor),
@@ -49,6 +51,7 @@ export function sanitizeBranding(branding: TenantBranding): TenantBranding {
     loginSubtitle: branding.loginSubtitle?.trim() || null,
     supportEmail: branding.supportEmail?.trim() || null,
     supportPhone: branding.supportPhone?.trim() || null,
+    homeContent: sanitizeHomeContent(branding.homeContent, applicationName),
   };
 }
 

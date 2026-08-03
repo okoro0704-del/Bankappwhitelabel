@@ -69,10 +69,12 @@ export function MasterApplicationDetailPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingUsername, setSavingUsername] = useState(false);
   const [provisioningAdmin, setProvisioningAdmin] = useState(false);
+  const [disablingAdmin, setDisablingAdmin] = useState(false);
 
   const tenant = detail.data?.tenant;
   const branding = detail.data?.branding;
   const deployment = detail.data?.deployment;
+  const adminLoginEnabled = Boolean(tenant?.adminLoginEnabled);
 
   async function runAction(action: () => Promise<unknown>, success: string) {
     setBusy(true);
@@ -281,6 +283,21 @@ export function MasterApplicationDetailPage() {
       setActionError(getFriendlyErrorMessage(err));
     } finally {
       setProvisioningAdmin(false);
+    }
+  }
+
+  async function disableAdminLogin() {
+    if (!tenant) return;
+    setDisablingAdmin(true);
+    setActionError(null);
+    try {
+      const result = await api.masterDisableTenantAdminLogin(tenant.id);
+      pushToast(result.message, 'success');
+      await detail.reload();
+    } catch (err) {
+      setActionError(getFriendlyErrorMessage(err));
+    } finally {
+      setDisablingAdmin(false);
     }
   }
 
@@ -625,13 +642,19 @@ export function MasterApplicationDetailPage() {
           Enter username, temporary password, and email (required if no owner yet), then click{' '}
           <strong>Enable admin login</strong>. That creates the real Auth account — saving notes alone
           will not unlock /admin/login. Username may only use letters, numbers, and underscore. Admins
-          use the temporary password you set here (not the username).
+          use the temporary password you set here (not the username). Admin login stays enabled across
+          app updates until you click <strong>Disable admin login</strong>.
         </p>
         <div className="handoff-grid">
           <HandoffRow
             label="Application"
             value={branding.applicationName || tenant.name}
             onCopy={() => copyText(branding.applicationName || tenant.name)}
+          />
+          <HandoffRow
+            label="Home"
+            value={deployment.homeUrl}
+            onCopy={() => copyText(deployment.homeUrl)}
           />
           <HandoffRow
             label="Customer login URL"
@@ -642,6 +665,15 @@ export function MasterApplicationDetailPage() {
             label="Admin Dashboard URL"
             value={deployment.adminDashboardUrl}
             onCopy={() => copyText(deployment.adminDashboardUrl)}
+          />
+          <HandoffRow
+            label="Home dashboard (admin)"
+            value={deployment.adminHomeUrl}
+            onCopy={() => copyText(deployment.adminHomeUrl)}
+          />
+          <HandoffRow
+            label="Admin login status"
+            value={adminLoginEnabled ? 'Enabled' : 'Disabled'}
           />
           <HandoffRow
             label="Admin username"
@@ -814,18 +846,33 @@ export function MasterApplicationDetailPage() {
             ) : null}
           </div>
 
-          <div className="row" style={{ flexWrap: 'wrap', marginTop: '0.35rem' }}>
+          <div className="row" style={{ flexWrap: 'wrap', marginTop: '0.35rem', gap: '0.5rem' }}>
             <Button
               type="button"
               disabled={
                 busy ||
                 provisioningAdmin ||
+                disablingAdmin ||
                 !(adminUsernameDraft ?? tenant.handoffAdminUsername)?.trim()
               }
               onClick={() => void enableAdminLogin()}
             >
-              {provisioningAdmin ? 'Enabling…' : 'Enable admin login'}
+              {provisioningAdmin
+                ? 'Enabling…'
+                : adminLoginEnabled
+                  ? 'Enable admin login (re-sync)'
+                  : 'Enable admin login'}
             </Button>
+            {adminLoginEnabled ? (
+              <Button
+                type="button"
+                variant="danger"
+                disabled={busy || provisioningAdmin || disablingAdmin}
+                onClick={() => void disableAdminLogin()}
+              >
+                {disablingAdmin ? 'Disabling…' : 'Disable admin login'}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

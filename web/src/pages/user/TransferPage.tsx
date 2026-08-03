@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link, useBlocker, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { ApiError, getFriendlyErrorMessage } from '../../api/errors';
 import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
@@ -81,15 +81,7 @@ export function TransferPage() {
   const [afterProgress, setAfterProgress] = useState<'verification' | 'completed' | null>(null);
 
   const idempotencyKeyRef = useRef<string | null>(null);
-  const hasLiveTransfer = Boolean(transfer?.id || action?.transferId);
-  // Never block navigation on a broken/missing transfer — that freezes the whole app shell.
-  const activeGuard =
-    !bootstrapping &&
-    !bootstrapError &&
-    hasLiveTransfer &&
-    (step === 'processing' || step === 'verification');
-
-  const blocker = useBlocker(activeGuard);
+  const [pendingTransfers, setPendingTransfers] = useState<Transfer[]>([]);
 
   const syncTransferInUrl = useCallback(
     (transferId: string | null) => {
@@ -147,21 +139,37 @@ export function TransferPage() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!activeGuard) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [activeGuard]);
-
   const refreshWallet = useCallback(async () => {
     const next = await api.getWallet();
     setWallet(next);
     return next;
   }, []);
+
+  const loadPendingTransfers = useCallback(async () => {
+    try {
+      const list = await api.getTransfers({ limit: 20, offset: 0 });
+      setPendingTransfers(list.items.filter((item) => isVerificationStatus(item.status)));
+    } catch {
+      setPendingTransfers([]);
+    }
+  }, []);
+
+  const finishLater = useCallback(() => {
+    clearActiveTransferId();
+    syncTransferInUrl(null);
+    idempotencyKeyRef.current = null;
+    setAction(null);
+    setTransfer(null);
+    setVerification(null);
+    setCode('');
+    setCodeError(null);
+    setProgressFrom(0);
+    setProgressTarget(12);
+    setAfterProgress(null);
+    setStep('form');
+    void loadPendingTransfers();
+    void refreshWallet().catch(() => undefined);
+  }, [loadPendingTransfers, refreshWallet, syncTransferInUrl]);
 
   const applyAction = useCallback(
     async (next: TransferActionResponse, existing?: Transfer | null) => {
@@ -359,6 +367,7 @@ export function TransferPage() {
         if (cancelled) return;
         setWallet(walletData);
         setAccount(accountData);
+        void loadPendingTransfers();
 
         // Only resume when the URL explicitly asks — nav to /app/transfer must open a fresh form.
         const resumeId = searchParams.get('transferId');
@@ -580,14 +589,15 @@ export function TransferPage() {
 
   async function onSubmitVerification() {
     const transferId = transfer?.id || action?.transferId || readActiveTransferId();
-    if (!transferId || code.length !== 6 || submitting) return;
+    const trimmedCode = code.replace(/\D/g, '').slice(0, 6);
+    if (!transferId || trimmedCode.length !== 6 || submitting) return;
 
     setSubmitting(true);
     setCodeError(null);
     setProcessingMessage('Verifying code…');
 
     try {
-      const result = await api.submitVerification(transferId, code);
+      const result = await api.submitVerification(transferId, trimmedCode);
       await applyAction(result, transfer);
     } catch (err) {
       let message = getFriendlyErrorMessage(err);
@@ -598,9 +608,12 @@ export function TransferPage() {
           message = 'Verification code expired';
         } else if (err.code === 'TOO_MANY_VERIFICATION_ATTEMPTS') {
           message = getFriendlyErrorMessage(err);
+        } else if (err.code === 'INVALID_TRANSFER' || err.code === 'NOT_FOUND') {
+          message =
+            'This transfer is not ready for that code. Contact the bank if this keeps happening.';
         }
       }
-      setCodeError(null);
+      setCodeError(message);
       pushToast(message, 'error');
 
       try {
@@ -720,36 +733,46 @@ export function TransferPage() {
         ) : null}
       </div>
 
-      {blocker.state === 'blocked' ? (
-        <Alert tone="warning" title="Leave this transfer?">
-          <p>
-            A transfer is still in progress. Leaving will not cancel it on the server — you can
-            resume from this page after returning.
-          </p>
-          <div className="row" style={{ marginTop: '0.75rem' }}>
-            <Button variant="secondary" onClick={() => blocker.reset?.()}>
-              Stay
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                clearActiveTransferId();
-                syncTransferInUrl(null);
-                setAction(null);
-                setTransfer(null);
-                setVerification(null);
-                setAfterProgress(null);
-                setStep('form');
-                blocker.proceed?.();
-              }}
-            >
-              Leave page
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-
       {step === 'form' ? (
+        <>
+          {pendingTransfers.length > 0 ? (
+            <div className="card card-pad stack-sm" style={{ marginBottom: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.05rem', margin: 0 }}>Pending transfers</h2>
+                <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                  Tap a transfer to continue entering codes. You can also start a new one below.
+                </p>
+              </div>
+              <div className="stack-sm">
+                {pendingTransfers.map((tr) => (
+                  <button
+                    key={tr.id}
+                    type="button"
+                    className="list-row-btn"
+                    onClick={() => {
+                      window.location.assign(
+                        `${window.location.origin}/app/transfer?transferId=${encodeURIComponent(tr.id)}`,
+                      );
+                    }}
+                  >
+                    <div className="mobile-row-top">
+                      <span className="row" style={{ gap: '0.45rem', alignItems: 'center' }}>
+                        <span className="xfer-pending-icon" aria-hidden>
+                          ◷
+                        </span>
+                        <strong>{formatMoney(tr.amount, currency)}</strong>
+                      </span>
+                      <span className="badge badge-info">Pending</span>
+                    </div>
+                    <div className="mobile-meta">
+                      <span>{tr.recipient.name}</span>
+                      <span>Continue transfer</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         <form className="card card-pad stack" onSubmit={onContinueToReview}>
           {formError ? (
             <Alert tone="warning" title="Could not restore transfer">
@@ -831,6 +854,7 @@ export function TransferPage() {
             </Link>
           </div>
         </form>
+        </>
       ) : null}
 
       {step === 'review' ? (
@@ -899,7 +923,7 @@ export function TransferPage() {
           onSubmit={() => void onSubmitVerification()}
           submitting={submitting}
           error={codeError}
-          onCancel={resetToNewTransfer}
+          onFinishLater={finishLater}
         />
       ) : null}
 

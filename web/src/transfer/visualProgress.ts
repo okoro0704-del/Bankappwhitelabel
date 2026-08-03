@@ -25,36 +25,30 @@ export function verificationCodeSubtitle(stage: number): string {
  * Visual-only progress mapping. Never sent to the backend.
  * Backend status/stage remains authoritative for UI state.
  *
- * Four-stage transfers pause at these gates for a code request:
- *   35% → Account Activation Code
- *   68% → International Transfer Fee Code
- *   85% → Anti Fraud Code
- *   95% → Wire Transfer Tax Code
- *  100% → completed
+ * Progress fills to the end, then the matching code is requested:
+ *   100% → Account Activation Code
+ *   100% → International Transfer Fee Code
+ *   100% → Anti Fraud Code
+ *   100% → Wire Transfer Tax Code
+ *   100% → completed (after final code)
  */
 
 export const VERIFICATION_PROGRESS_GATES = {
-  1: 35,
-  2: 68,
-  3: 85,
-  4: 95,
+  1: 100,
+  2: 100,
+  3: 100,
+  4: 100,
 } as const;
 
-export function progressGateForStage(stage?: number | null): number {
-  const n = stage ?? 1;
-  if (n <= 1) return VERIFICATION_PROGRESS_GATES[1];
-  if (n === 2) return VERIFICATION_PROGRESS_GATES[2];
-  if (n === 3) return VERIFICATION_PROGRESS_GATES[3];
-  return VERIFICATION_PROGRESS_GATES[4];
+export function progressGateForStage(_stage?: number | null): number {
+  return 100;
 }
 
-/** Progress floor before animating toward the gate for this stage. */
+/** Progress floor before animating to the end for this stage. */
 export function progressFloorForStage(stage?: number | null): number {
   const n = stage ?? 1;
   if (n <= 1) return 8;
-  if (n === 2) return VERIFICATION_PROGRESS_GATES[1];
-  if (n === 3) return VERIFICATION_PROGRESS_GATES[2];
-  return VERIFICATION_PROGRESS_GATES[3];
+  return 12;
 }
 
 export function visualProgressPercent(input: {

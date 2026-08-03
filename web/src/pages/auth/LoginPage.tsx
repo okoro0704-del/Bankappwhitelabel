@@ -32,7 +32,7 @@ export function LoginPage() {
       const user = await signIn(username, password);
       if (user.role === 'admin') {
         await signOut();
-        setError('This page is for customer accounts. Use Admin sign in instead.');
+        setError('This page is for customer accounts only.');
         return;
       }
       navigate('/app', { replace: true });
@@ -126,9 +126,6 @@ export function LoginPage() {
       <p>
         <Link to="/forgot-password">Forgot password?</Link>
       </p>
-      <p className="muted" style={{ fontSize: '0.85rem' }}>
-        Tenant administrator? <Link to="/admin/login">Admin sign in</Link>
-      </p>
       <p>
         <Link to="/">Back to home</Link>
       </p>
@@ -152,7 +149,7 @@ export function AdminLoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const user = await signIn(username, password);
+      const user = await signIn(username, password, { allowUsernameAsPassword: false });
       if (user.role !== 'admin') {
         await signOut();
         setError('This page is for administrators. Use customer sign in instead.');

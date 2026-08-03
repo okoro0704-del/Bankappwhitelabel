@@ -11,6 +11,60 @@ export type TenantDeploymentStatus =
   | 'ssl_pending'
   | 'ready';
 
+export interface TenantHomeMetric {
+  label: string;
+  percent: number;
+}
+
+/** Public marketing Home content (tenant-admin editable deliverable). */
+export interface TenantHomeContent {
+  topBarHours: string;
+  tagline: string;
+  heroHeadline: string;
+  heroSupport: string;
+  navHome: string;
+  navAbout: string;
+  navBanking: string;
+  navLoans: string;
+  navInvesting: string;
+  navCards: string;
+  navContact: string;
+  bankingTitle: string;
+  bankingLead: string;
+  bankingBody: string;
+  bankingSecondary: string;
+  philosophyTitle: string;
+  philosophyLead: string;
+  philosophyBody: string;
+  philosophyHighlight: string;
+  whyTitle: string;
+  whySubtitle: string;
+  visionTitle: string;
+  visionBody: string;
+  missionTitle: string;
+  missionBody: string;
+  philosophySectionTitle: string;
+  philosophySectionBody: string;
+  metrics: TenantHomeMetric[];
+  aboutTitle: string;
+  aboutBody: string;
+  hoursOnline: string;
+  hoursSupport: string;
+  hoursBranch: string;
+  hoursSaturday: string;
+  headOfficeTitle: string;
+  headOfficeAddress: string;
+  footerMission: string;
+  footerBorrowing: string;
+  footerInvestments: string;
+  footerContact: string;
+  footerPolicy: string;
+  footerTerms: string;
+  footerLogin: string;
+  footerNewAccounts: string;
+  copyrightNote: string;
+}
+
 export interface TenantBranding {
   applicationName: string;
   logoUrl: string | null;
@@ -22,6 +76,8 @@ export interface TenantBranding {
   loginSubtitle: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
+  /** Public Home marketing deliverable; filled with defaults when missing. */
+  homeContent?: TenantHomeContent | null;
 }
 
 export interface Tenant {
@@ -33,6 +89,8 @@ export interface Tenant {
   subdomain: string;
   handoffTempPassword: string | null;
   handoffAdminUsername: string | null;
+  /** When false, /admin/login is blocked for this tenant. Persists across other updates. */
+  adminLoginEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,8 +112,10 @@ export interface TenantDnsRecordInstructions {
 
 export interface TenantDeploymentInfo {
   hostname: string;
+  homeUrl: string;
   loginUrl: string;
   adminDashboardUrl: string;
+  adminHomeUrl: string;
   baseDomain: string;
   dnsTarget: string;
   dnsStatus: TenantDnsStatus;
