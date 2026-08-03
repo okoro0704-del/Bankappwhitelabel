@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Card({
   children,
@@ -23,6 +24,53 @@ export function Badge({
   return <span className={`badge ${toneClass}`.trim()}>{children}</span>;
 }
 
+function ErrorPopupAlert({
+  title,
+  children,
+  onClose,
+}: {
+  title?: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const bodyId = useId();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="error-popup-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="error-popup"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={bodyId}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="error-popup-close" aria-label="Close error" onClick={onClose}>
+          <span aria-hidden>✕</span>
+        </button>
+        <div className="error-popup-icon" aria-hidden>
+          !
+        </div>
+        <h2 id={titleId}>{title || 'Something went wrong'}</h2>
+        <div id={bodyId}>{children}</div>
+        <button type="button" className="btn btn-primary" onClick={onClose}>
+          OK
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function Alert({
   children,
   tone = 'info',
@@ -32,6 +80,24 @@ export function Alert({
   tone?: 'info' | 'success' | 'warning' | 'error';
   title?: string;
 }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(false);
+  }, [children, title, tone]);
+
+  if (tone === 'error' && !dismissed) {
+    return (
+      <ErrorPopupAlert title={title} onClose={() => setDismissed(true)}>
+        {children}
+      </ErrorPopupAlert>
+    );
+  }
+
+  if (tone === 'error' && dismissed) {
+    return null;
+  }
+
   return (
     <div className={`alert alert-${tone}`} role="alert">
       {title ? <strong>{title}</strong> : null}

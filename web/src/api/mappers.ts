@@ -25,6 +25,10 @@ export function mapProfile(row: Record<string, unknown>): Profile {
     username: String(row.username),
     status: row.status as Profile['status'],
     role: row.role as Profile['role'],
+    avatarUrl:
+      (row.avatar_url as string | null | undefined) ??
+      (row.avatarUrl as string | null | undefined) ??
+      null,
     handoffTempPassword:
       (row.handoff_temp_password as string | null | undefined) ??
       (row.handoffTempPassword as string | null | undefined) ??
@@ -49,6 +53,7 @@ export function mapSession(data: Record<string, unknown>): SessionUser {
     username: String(data.username ?? ''),
     firstName: String(data.firstName ?? ''),
     lastName: String(data.lastName ?? ''),
+    avatarUrl: (data.avatarUrl as string | null | undefined) ?? null,
     isMasterAdmin: Boolean(data.isMasterAdmin),
   };
 }
@@ -76,6 +81,14 @@ export function mapAccount(row: Record<string, unknown>, wallet?: Wallet | null)
     accountStatus: (row.account_status ?? row.accountStatus) as Account['accountStatus'],
     balance: wallet?.balance ?? Number(row.balance ?? 0),
     currency: wallet?.currency ?? String(row.currency ?? 'USD'),
+    accountCountry:
+      (row.account_country as string | null | undefined) ??
+      (row.accountCountry as string | null | undefined) ??
+      null,
+    routingNumber:
+      (row.routing_number as string | null | undefined) ??
+      (row.routingNumber as string | null | undefined) ??
+      null,
     oneTimeTransferUsed: Boolean(row.one_time_transfer_used ?? row.oneTimeTransferUsed),
   };
 }

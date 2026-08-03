@@ -1,52 +1,81 @@
-import { visualProgressPercent } from '../../transfer/visualProgress';
+import { useEffect, useRef, useState } from 'react';
+
+const IS_TEST = import.meta.env.MODE === 'test';
 
 export function TransferProgressBar({
-  status,
-  stage,
-  label,
+  percent,
+  label = 'Transfer progress',
+  animateFrom,
+  durationMs,
+  onReached,
 }: {
-  status: string;
-  stage?: number | null;
+  percent: number;
   label?: string;
+  /** When set, animates from this value up to `percent`. */
+  animateFrom?: number;
+  durationMs?: number;
+  onReached?: () => void;
 }) {
-  const percent = visualProgressPercent({ status, stage });
+  const target = Math.max(0, Math.min(100, Math.round(percent)));
+  const start = Math.max(
+    0,
+    Math.min(target, Math.round(animateFrom ?? target)),
+  );
+  const duration = durationMs ?? (IS_TEST ? 0 : 2400);
+  const [display, setDisplay] = useState(start);
+  const reachedRef = useRef(false);
+  const onReachedRef = useRef(onReached);
+  onReachedRef.current = onReached;
+
+  useEffect(() => {
+    reachedRef.current = false;
+    setDisplay(start);
+
+    if (duration <= 0 || start >= target) {
+      setDisplay(target);
+      if (!reachedRef.current) {
+        reachedRef.current = true;
+        onReachedRef.current?.();
+      }
+      return;
+    }
+
+    let frame = 0;
+    const begun = performance.now();
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - begun) / duration);
+      // Ease-out so it feels like it settles at the gate.
+      const eased = 1 - (1 - t) ** 2;
+      const next = Math.round(start + (target - start) * eased);
+      setDisplay(next);
+      if (t < 1) {
+        frame = requestAnimationFrame(tick);
+      } else if (!reachedRef.current) {
+        reachedRef.current = true;
+        onReachedRef.current?.();
+      }
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [start, target, duration]);
 
   return (
     <div className="xfer-progress" aria-hidden={false}>
       <div className="xfer-progress-meta">
-        <span>{label ?? 'Processing'}</span>
-        <span className="muted">{percent}%</span>
+        <span>{label}</span>
+        <span className="muted">{display}%</span>
       </div>
       <div
         className="xfer-progress-track"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={percent}
-        aria-label={label ?? 'Transfer progress'}
+        aria-valuenow={display}
+        aria-label={label}
       >
-        <div className="xfer-progress-fill" style={{ width: `${percent}%` }} />
-      </div>
-    </div>
-  );
-}
-
-export function StageCheckpoints({ stage }: { stage: number }) {
-  const current = Math.min(4, Math.max(1, stage));
-  return (
-    <div className="xfer-stages" aria-label={`Verification stage ${current} of 4`}>
-      <p className="xfer-stages-label">
-        Stage {current} of 4
-      </p>
-      <div className="xfer-stages-row" aria-hidden>
-        {[1, 2, 3, 4].map((n, index) => (
-          <div key={n} className="xfer-stages-item">
-            <span className={`xfer-stage-dot${n <= current ? ' filled' : ''}`} />
-            {index < 3 ? (
-              <span className={`xfer-stage-line${n < current ? ' filled' : ''}`} />
-            ) : null}
-          </div>
-        ))}
+        <div className="xfer-progress-fill" style={{ width: `${display}%` }} />
       </div>
     </div>
   );

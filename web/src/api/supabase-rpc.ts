@@ -43,9 +43,33 @@ export async function invokeFunction<T>(
 }
 
 export async function rpcJson<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await getSupabase().rpc(fn, args);
+  let data: T | null = null;
+  let error: { message?: string; code?: string; details?: string; hint?: string } | null = null;
+  try {
+    const result = await getSupabase().rpc(fn, args);
+    data = result.data as T | null;
+    error = result.error;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unable to reach the server';
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) {
+      throw new ApiError(
+        'NETWORK_ERROR',
+        'Could not reach the database. If you just ran SQL migrations, wait a few seconds and try again. Also confirm VITE_SUPABASE_URL is correct.',
+        0,
+      );
+    }
+    throw new ApiError('NETWORK_ERROR', message || 'Unable to reach the server', 0);
+  }
+
   if (error) {
     const message = error.message || 'Request failed';
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(message)) {
+      throw new ApiError(
+        'NETWORK_ERROR',
+        'Could not reach the database. If create-user just broke after a migration, run supabase/migrations/20260803200000_fix_admin_create_user_rpc.sql in the Supabase SQL Editor, then try again.',
+        0,
+      );
+    }
     const code =
       message.includes('UNAUTHENTICATED')
         ? 'UNAUTHENTICATED'
@@ -75,11 +99,17 @@ export async function rpcJson<T>(fn: string, args: Record<string, unknown> = {})
                                 ? 'INVALID_TRANSFER'
                                 : message.includes('VALIDATION_ERROR')
                                   ? 'VALIDATION_ERROR'
-                                  : 'INTERNAL_ERROR';
+                                  : /could not find the function|PGRST202|schema cache/i.test(message)
+                                    ? 'VALIDATION_ERROR'
+                                    : 'INTERNAL_ERROR';
     const cleaned = message.replace(/^.*VALIDATION_ERROR:\s*/i, '').trim() || message;
     throw new ApiError(
       code,
-      code === 'VALIDATION_ERROR' ? cleaned : message,
+      code === 'VALIDATION_ERROR'
+        ? /could not find the function|PGRST202|schema cache/i.test(message)
+          ? 'Create-user RPC is missing or overloaded. Run supabase/migrations/20260803200000_fix_admin_create_user_rpc.sql in the Supabase SQL Editor, then try again.'
+          : cleaned
+        : message,
       code === 'NOT_FOUND' ? 404 : code === 'UNAUTHENTICATED' ? 401 : 400,
     );
   }

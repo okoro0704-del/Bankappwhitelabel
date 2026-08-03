@@ -248,11 +248,16 @@ export function MasterApplicationDetailPage() {
   async function enableAdminLogin() {
     if (!tenant) return;
     const username = (adminUsernameDraft ?? tenant.handoffAdminUsername ?? '').trim().toLowerCase();
-    const password =
-      (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim() || username;
+    const password = (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim();
     const email = adminEmailDraft.trim().toLowerCase() || undefined;
     if (!username) {
-      setActionError('Enter an admin username, then enable login. Password defaults to the username.');
+      setActionError('Enter an admin username, then enable login.');
+      return;
+    }
+    if (!password) {
+      setActionError(
+        'Enter the admin temporary password (admins do not use the username as password).',
+      );
       return;
     }
     setProvisioningAdmin(true);
@@ -260,10 +265,15 @@ export function MasterApplicationDetailPage() {
     try {
       const result = await api.masterProvisionTenantAdmin(tenant.id, {
         username,
-        password,
+        password: password || null,
         email,
       });
-      pushToast(result.message, 'success');
+      pushToast(
+        result.temporaryPassword
+          ? `${result.message} Password: ${result.temporaryPassword}`
+          : result.message,
+        'success',
+      );
       setAdminUsernameDraft(null);
       setTempPasswordDraft(null);
       await detail.reload();
@@ -614,7 +624,8 @@ export function MasterApplicationDetailPage() {
         <p className="muted">
           Enter username, temporary password, and email (required if no owner yet), then click{' '}
           <strong>Enable admin login</strong>. That creates the real Auth account — saving notes alone
-          will not unlock /admin/login. Username may only use letters, numbers, and underscore.
+          will not unlock /admin/login. Username may only use letters, numbers, and underscore. Admins
+          use the temporary password you set here (not the username).
         </p>
         <div className="handoff-grid">
           <HandoffRow
@@ -650,17 +661,11 @@ export function MasterApplicationDetailPage() {
             value={
               tempPasswordDraft ??
               tenant.handoffTempPassword ??
-              tenant.handoffAdminUsername ??
-              'Defaults to username when not set'
+              'Not set — enter below'
             }
             onCopy={
-              (tempPasswordDraft ?? tenant.handoffTempPassword ?? tenant.handoffAdminUsername)
-                ? () =>
-                    copyText(
-                      (tempPasswordDraft ??
-                        tenant.handoffTempPassword ??
-                        tenant.handoffAdminUsername)!,
-                    )
+              (tempPasswordDraft ?? tenant.handoffTempPassword)
+                ? () => copyText((tempPasswordDraft ?? tenant.handoffTempPassword)!)
                 : undefined
             }
           />

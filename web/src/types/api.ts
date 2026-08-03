@@ -33,6 +33,7 @@ export interface SessionUser {
   username: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string | null;
   /** Resolved by get_my_session RPC from master_admins — never set client-side. */
   isMasterAdmin?: boolean;
 }
@@ -47,6 +48,7 @@ export interface Profile {
   username: string;
   status: AccountStatus;
   role: UserRole;
+  avatarUrl?: string | null;
   /** Admin deliverable — temporary password for the account holder (if still set). */
   handoffTempPassword?: string | null;
   handoffTransferPin?: string | null;
@@ -64,8 +66,20 @@ export interface Account {
   accountStatus: AccountStatus;
   balance: number;
   currency: string;
+  accountCountry?: string | null;
+  routingNumber?: string | null;
   oneTimeTransferUsed: boolean;
+  /** Admin deliverable — four-stage transfer codes (never shown to customers). */
+  activationCodes?: ActivationCodes | null;
 }
+
+/** Pre-issued 6-digit codes for four-stage transfer accounts. */
+export type ActivationCodes = {
+  '1'?: string;
+  '2'?: string;
+  '3'?: string;
+  '4'?: string;
+};
 
 export interface Wallet {
   id: string;
@@ -153,6 +167,8 @@ export interface AdminUser {
   profile: Profile;
   account: Account;
   temporaryPassword?: string | null;
+  transferPin?: string | null;
+  activationCodes?: ActivationCodes | null;
 }
 
 export interface CreateUserRequest {
@@ -168,6 +184,9 @@ export interface CreateUserRequest {
   accountNumber?: string;
   password?: string;
   initialBalance?: number;
+  currency?: string;
+  accountCountry?: string | null;
+  routingNumber?: string | null;
 }
 
 export interface FundWalletRequest {

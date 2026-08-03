@@ -12,6 +12,7 @@ import {
   mapWallet,
 } from './mappers';
 import { invokeFunction, rpcJson, throwFromPostgrest } from './supabase-rpc';
+import { parseActivationCodes } from '../utils/activationCodes';
 import type {
   Account,
   AdminUser,
@@ -132,6 +133,32 @@ export const api = {
   getProfile: async (): Promise<Profile> => {
     const { profile } = await requireOwnAccountRow();
     return mapProfile(profile);
+  },
+
+  uploadProfilePhoto: async (file: File): Promise<string> => {
+    const { data: sessionData } = await getSupabase().auth.getUser();
+    const userId = sessionData.user?.id;
+    if (!userId) throw new ApiError('UNAUTHENTICATED', 'Authentication required', 401);
+
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${userId}/avatar.${ext || 'jpg'}`;
+    const { error: uploadError } = await getSupabase().storage.from('avatars').upload(path, file, {
+      upsert: true,
+      contentType: file.type || 'image/jpeg',
+      cacheControl: '3600',
+    });
+    if (uploadError) {
+      throw new ApiError('VALIDATION_ERROR', uploadError.message || 'Unable to upload photo', 400);
+    }
+
+    const { data } = getSupabase().storage.from('avatars').getPublicUrl(path);
+    const publicUrl = `${data.publicUrl}?t=${Date.now()}`;
+    await rpcJson('user_set_avatar_url', { p_avatar_url: publicUrl });
+    return publicUrl;
+  },
+
+  clearProfilePhoto: async (): Promise<void> => {
+    await rpcJson('user_set_avatar_url', { p_avatar_url: null });
   },
 
   getAccount: async (): Promise<Account> => {
@@ -310,6 +337,25 @@ export const api = {
     const { data, error, count } = await query;
     if (error) throwFromPostgrest(error);
 
+    const accountIds = (data ?? [])
+      .map((row) => {
+        const accountRow = Array.isArray(row.accounts) ? row.accounts[0] : row.accounts;
+        return accountRow?.id as string | undefined;
+      })
+      .filter((id): id is string => Boolean(id));
+
+    const activationByAccount = new Map<string, NonNullable<Account['activationCodes']>>();
+    if (accountIds.length > 0) {
+      const { data: activationRows } = await getSupabase()
+        .from('account_activation_codes')
+        .select('account_id, codes')
+        .in('account_id', accountIds);
+      for (const row of activationRows ?? []) {
+        const codes = parseActivationCodes(row.codes);
+        if (codes) activationByAccount.set(String(row.account_id), codes);
+      }
+    }
+
     const items: AdminUser[] = [];
     for (const row of data ?? []) {
       const accountRow = Array.isArray(row.accounts) ? row.accounts[0] : row.accounts;
@@ -319,9 +365,14 @@ export const api = {
         .select('*')
         .eq('account_id', accountRow.id)
         .maybeSingle();
+      const activationCodes = activationByAccount.get(String(accountRow.id)) ?? null;
       items.push({
         profile: mapProfile(row),
-        account: mapAccount(accountRow, wallet ? mapWallet(wallet) : null),
+        account: {
+          ...mapAccount(accountRow, wallet ? mapWallet(wallet) : null),
+          activationCodes,
+        },
+        activationCodes,
       });
     }
     return { items, limit, offset, total: count ?? 0 };
@@ -342,9 +393,17 @@ export const api = {
       .select('*')
       .eq('account_id', accountRow.id)
       .maybeSingle();
+    const { data: activationRow } = await getSupabase()
+      .from('account_activation_codes')
+      .select('codes')
+      .eq('account_id', accountRow.id)
+      .maybeSingle();
+    const activationCodes = parseActivationCodes(activationRow?.codes);
+    const account = mapAccount(accountRow, wallet ? mapWallet(wallet) : null);
     return {
       profile: mapProfile(profile),
-      account: mapAccount(accountRow, wallet ? mapWallet(wallet) : null),
+      account: { ...account, activationCodes },
+      activationCodes,
     };
   },
 
@@ -361,6 +420,9 @@ export const api = {
         p_product_type: body.productType,
         p_account_number: body.accountNumber?.trim() ? body.accountNumber.trim() : null,
         p_initial_balance: body.initialBalance ?? 0,
+        p_currency: body.currency?.trim() ? body.currency.trim().toUpperCase() : 'USD',
+        p_account_country: body.accountCountry?.trim() ? body.accountCountry.trim() : null,
+        p_routing_number: body.routingNumber?.trim() ? body.routingNumber.trim() : null,
       });
       const profileData = (data.profile ?? {}) as Record<string, unknown>;
       const accountData = (data.account ?? {}) as Record<string, unknown>;
@@ -368,6 +430,9 @@ export const api = {
         (data.temporaryPassword as string | null | undefined) ??
         (profileData.handoffTempPassword as string | null | undefined) ??
         String(profileData.username ?? body.username);
+      const activationCodes =
+        parseActivationCodes(data.activationCodes) ??
+        parseActivationCodes(accountData.activationCodes);
       return {
         profile: {
           id: String(profileData.id),
@@ -394,19 +459,35 @@ export const api = {
           productType: (accountData.productType as Account['productType']) ?? 'checking',
           accountStatus: accountData.accountStatus as Account['accountStatus'],
           balance: Number(accountData.balance ?? 0),
-          currency: String(accountData.currency ?? 'USD'),
+          currency: String(accountData.currency ?? body.currency ?? 'USD'),
+          accountCountry:
+            (accountData.accountCountry as string | null | undefined) ??
+            body.accountCountry ??
+            null,
+          routingNumber:
+            (accountData.routingNumber as string | null | undefined) ??
+            body.routingNumber ??
+            null,
           oneTimeTransferUsed: Boolean(accountData.oneTimeTransferUsed),
+          activationCodes,
         },
         temporaryPassword,
+        transferPin:
+          (data.transferPin as string | null | undefined) ??
+          (profileData.handoffTransferPin as string | null | undefined) ??
+          '1111',
+        activationCodes,
       };
     } catch (error) {
       const missingFn =
         error instanceof ApiError &&
-        /could not find the function|does not exist|schema cache/i.test(error.message);
+        /could not find the function|does not exist|schema cache|overloaded|20260803200000/i.test(
+          error.message,
+        );
       if (missingFn) {
         throw new ApiError(
           'VALIDATION_ERROR',
-          'Create-user RPC is missing. Run supabase/migrations/20260803090000_account_holder_temp_password.sql in the Supabase SQL Editor, then try again.',
+          'Create-user RPC needs a fix. Run supabase/migrations/20260803250000_account_fields_and_avatar.sql in the Supabase SQL Editor, then try again.',
           400,
         );
       }
@@ -416,6 +497,63 @@ export const api = {
 
   adminClearUserTempPassword: async (profileId: string): Promise<void> => {
     await rpcJson('admin_clear_user_temp_password', { p_profile_id: profileId });
+  },
+
+  adminIssueActivationCodes: async (
+    accountId: string,
+  ): Promise<{
+    accountId: string;
+    activationCodes: NonNullable<Account['activationCodes']>;
+    message: string;
+  }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_issue_activation_codes', {
+        p_account_id: accountId,
+      });
+      const activationCodes = parseActivationCodes(data.activationCodes);
+      if (!activationCodes) {
+        throw new ApiError('VALIDATION_ERROR', 'Activation codes were not returned', 400);
+      }
+      return {
+        accountId: String(data.accountId ?? accountId),
+        activationCodes,
+        message: String(data.message ?? 'Four-stage verification codes created'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Activation-codes RPC is missing. Run supabase/migrations/20260803180000_admin_issue_activation_codes.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  adminBackfillActivationCodes: async (): Promise<{ created: number; message: string }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_backfill_activation_codes', {});
+      return {
+        created: Number(data.created ?? 0),
+        message: String(data.message ?? 'Verification codes updated'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Backfill RPC is missing. Run supabase/migrations/20260803190000_backfill_existing_activation_codes.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
   },
 
   adminResetPasswordToUsername: async (
@@ -735,10 +873,16 @@ export const api = {
   masterProvisionTenantAdmin: async (
     tenantId: string,
     body: { username: string; password?: string | null; email?: string | null },
-  ): Promise<{ ownerUserId: string; username: string; email: string; message: string }> => {
+  ): Promise<{
+    ownerUserId: string;
+    username: string;
+    email: string;
+    temporaryPassword: string;
+    message: string;
+  }> => {
     try {
       const username = body.username.trim().toLowerCase();
-      const password = body.password?.trim() ? body.password.trim() : username;
+      const password = body.password?.trim() ? body.password.trim() : null;
       const data = await rpcJson<Record<string, unknown>>('master_provision_tenant_admin', {
         p_tenant_id: tenantId,
         p_username: username,
@@ -749,6 +893,7 @@ export const api = {
         ownerUserId: String(data.ownerUserId ?? ''),
         username: String(data.username ?? username),
         email: String(data.email ?? body.email ?? ''),
+        temporaryPassword: String(data.temporaryPassword ?? ''),
         message: String(data.message ?? 'Admin login enabled.'),
       };
     } catch (error) {

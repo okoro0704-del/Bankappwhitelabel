@@ -8,6 +8,7 @@ import { StatusBadge, TypeBadge } from '../../components/ui/StatusBadges';
 import { TransactionDetailModal } from '../../components/TransactionDetailModal';
 import { TransferDetailModal } from '../../components/TransferDetailModal';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { clearActiveTransferId } from '../../transfer/session';
 import {
   productTypeLabel,
   amountSignClass,
@@ -97,7 +98,11 @@ export function UserDashboardPage() {
         <div className="card card-pad">
           <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>Quick actions</h2>
           <div className="quick-actions" style={{ gridTemplateColumns: '1fr' }}>
-            <Link className="quick-action" to="/app/transfer">
+            <Link
+              className="quick-action"
+              to="/app/transfer"
+              onClick={() => clearActiveTransferId()}
+            >
               <strong>Transfer</strong>
               <span className="muted">Send to an external account</span>
             </Link>
@@ -170,7 +175,11 @@ export function UserDashboardPage() {
               <h2 style={{ fontSize: '1.15rem' }}>Recent transfers</h2>
               <p className="muted">Transfer activity</p>
             </div>
-            <Link className="btn btn-secondary btn-sm" to="/app/transfer">
+            <Link
+              className="btn btn-secondary btn-sm"
+              to="/app/transfer"
+              onClick={() => clearActiveTransferId()}
+            >
               New transfer
             </Link>
           </div>
@@ -185,7 +194,11 @@ export function UserDashboardPage() {
               title="No transfers yet"
               description="Start a transfer when you are ready."
               action={
-                <Link className="btn btn-secondary btn-sm" to="/app/transfer">
+                <Link
+                  className="btn btn-secondary btn-sm"
+                  to="/app/transfer"
+                  onClick={() => clearActiveTransferId()}
+                >
                   Transfer
                 </Link>
               }

@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Feedback';
 import { formatAccountNumber, formatDate, formatMoney, statusLabel } from '../../utils/format';
 import type { Transfer, TransferActionResponse, Wallet } from '../../types/api';
-import { StageCheckpoints, TransferProgressBar } from './Progress';
+import {
+  progressGateForStage,
+  verificationCodeSubtitle,
+  verificationCodeTitle,
+} from '../../transfer/visualProgress';
+import { TransferProgressBar } from './Progress';
 import { VerificationCodeInput } from './VerificationCodeInput';
 
 export interface TransferDraft {
@@ -113,15 +117,18 @@ export function ProcessingPanel({
   action,
   currency,
   message,
+  progressPercent,
+  animateFrom,
+  onProgressReached,
 }: {
   transfer?: Transfer | null;
   action?: TransferActionResponse | null;
   currency: string;
   message: string;
+  progressPercent: number;
+  animateFrom?: number;
+  onProgressReached?: () => void;
 }) {
-  const status = action?.status ?? transfer?.status ?? 'processing';
-  const stage = action?.stage ?? transfer?.currentStage;
-
   return (
     <div className="card card-pad stack xfer-processing">
       <div className="xfer-spinner" aria-hidden />
@@ -131,7 +138,12 @@ export function ProcessingPanel({
           {message}
         </p>
       </div>
-      <TransferProgressBar status={status} stage={stage} label="Transfer progress" />
+      <TransferProgressBar
+        percent={progressPercent}
+        animateFrom={animateFrom}
+        label="Transfer progress"
+        onReached={onProgressReached}
+      />
       <TransferDetailsCard transfer={transfer} action={action} currency={currency} />
     </div>
   );
@@ -139,7 +151,6 @@ export function ProcessingPanel({
 
 export function VerificationPanel({
   stage,
-  expiresAt,
   currency,
   transfer,
   action,
@@ -148,9 +159,9 @@ export function VerificationPanel({
   onSubmit,
   submitting,
   error,
+  onCancel,
 }: {
   stage: number;
-  expiresAt?: string;
   currency: string;
   transfer?: Transfer | null;
   action?: TransferActionResponse | null;
@@ -159,60 +170,41 @@ export function VerificationPanel({
   onSubmit: () => void;
   submitting: boolean;
   error: string | null;
+  onCancel?: () => void;
 }) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!expiresAt) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [expiresAt]);
-
-  const remainingMs = expiresAt ? new Date(expiresAt).getTime() - now : null;
-  const expired = remainingMs !== null && remainingMs <= 0;
-  const countdown =
-    remainingMs !== null && remainingMs > 0
-      ? `${Math.floor(remainingMs / 60000)}:${String(Math.floor((remainingMs % 60000) / 1000)).padStart(2, '0')}`
-      : null;
+  const title = verificationCodeTitle(stage);
+  const subtitle = verificationCodeSubtitle(stage);
+  const progressPercent = progressGateForStage(stage);
 
   return (
     <div className="card card-pad stack">
       <div>
-        <h2>Additional verification required</h2>
-        <p className="page-subtitle">
-          Enter the verification code to continue processing your transfer.
-        </p>
+        <h2>{title}</h2>
+        <p className="page-subtitle">{subtitle}</p>
       </div>
 
-      <StageCheckpoints stage={stage} />
-      <TransferProgressBar
-        status="verification_required"
-        stage={stage}
-        label={`Stage ${stage} of 4`}
-      />
-
-      {expiresAt ? (
-        <p className="muted" aria-live="polite">
-          {expired
-            ? 'This verification code has expired.'
-            : `Code expires in ${countdown}`}
-        </p>
-      ) : null}
+      {/* Never show "Stage X of 4" — customers only see the code title + progress %. */}
+      <TransferProgressBar percent={progressPercent} label="Transfer progress" />
 
       <VerificationCodeInput
         value={code}
         onChange={onCodeChange}
         disabled={submitting}
         error={error}
+        label={title}
+        hint="Enter the 6-digit code provided by your bank"
       />
 
-      <Button
-        type="button"
-        disabled={submitting || code.length !== 6}
-        onClick={onSubmit}
-      >
-        {submitting ? 'Verifying…' : 'Continue'}
-      </Button>
+      <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+        <Button type="button" disabled={submitting || code.length !== 6} onClick={onSubmit}>
+          {submitting ? 'Verifying…' : 'Continue'}
+        </Button>
+        {onCancel ? (
+          <Button type="button" variant="ghost" disabled={submitting} onClick={onCancel}>
+            Cancel transfer
+          </Button>
+        ) : null}
+      </div>
 
       <TransferDetailsCard transfer={transfer} action={action} currency={currency} />
     </div>
@@ -222,9 +214,11 @@ export function VerificationPanel({
 export function OutcomeActions({
   transactionId,
   showTryAgain = true,
+  onMakeAnother,
 }: {
   transactionId?: string;
   showTryAgain?: boolean;
+  onMakeAnother?: () => void;
 }) {
   return (
     <div className="row">
@@ -238,9 +232,15 @@ export function OutcomeActions({
         </Link>
       )}
       {showTryAgain ? (
-        <Link className="btn btn-secondary" to="/app/transfer">
-          Make another transfer
-        </Link>
+        onMakeAnother ? (
+          <Button type="button" variant="secondary" onClick={onMakeAnother}>
+            Make another transfer
+          </Button>
+        ) : (
+          <Link className="btn btn-secondary" to="/app/transfer">
+            Make another transfer
+          </Link>
+        )
       ) : null}
       <Link className="btn btn-ghost" to="/app/transactions">
         View transactions
@@ -253,10 +253,12 @@ export function CompletedPanel({
   transfer,
   action,
   wallet,
+  onMakeAnother,
 }: {
   transfer?: Transfer | null;
   action?: TransferActionResponse | null;
   wallet?: Wallet | null;
+  onMakeAnother?: () => void;
 }) {
   const currency = wallet?.currency ?? 'USD';
   return (
@@ -290,7 +292,7 @@ export function CompletedPanel({
           </div>
         ) : null}
       </dl>
-      <OutcomeActions transactionId={action?.transactionId} />
+      <OutcomeActions transactionId={action?.transactionId} onMakeAnother={onMakeAnother} />
     </div>
   );
 }
@@ -301,12 +303,14 @@ export function FailedPanel({
   currency,
   title = 'Transfer failed',
   message,
+  onMakeAnother,
 }: {
   transfer?: Transfer | null;
   action?: TransferActionResponse | null;
   currency: string;
   title?: string;
   message: string;
+  onMakeAnother?: () => void;
 }) {
   return (
     <div className="card card-pad stack">
@@ -331,7 +335,7 @@ export function FailedPanel({
           <dd>{statusLabel(transfer?.status ?? 'failed')}</dd>
         </div>
       </dl>
-      <OutcomeActions showTryAgain />
+      <OutcomeActions showTryAgain onMakeAnother={onMakeAnother} />
     </div>
   );
 }

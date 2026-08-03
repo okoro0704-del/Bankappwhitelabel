@@ -8,6 +8,8 @@ import { Field, Input, Select } from '../../components/ui/Field';
 import { useToast } from '../../components/ui/Toast';
 import type { AccountType, AdminUser, ProductAccountType } from '../../types/api';
 import { formatAccountNumber, productTypeLabel, accountBehaviorLabel } from '../../utils/format';
+import { activationCodeDeliverables } from '../../utils/activationCodes';
+import { ACCOUNT_COUNTRIES, ACCOUNT_CURRENCIES } from '../../data/accountOptions';
 
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
@@ -31,6 +33,9 @@ export function AdminCreateUserPage() {
     accountNumber: '',
     password: '',
     initialBalance: '0',
+    currency: 'USD',
+    accountCountry: 'United States',
+    routingNumber: '',
   });
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -57,6 +62,9 @@ export function AdminCreateUserPage() {
         accountNumber: form.accountNumber.trim() || undefined,
         password,
         initialBalance: Number(form.initialBalance) || 0,
+        currency: form.currency,
+        accountCountry: form.accountCountry.trim() || null,
+        routingNumber: form.routingNumber.trim() || null,
       });
       setCreated(result);
       pushToast('User created — copy deliverables below', 'success');
@@ -126,18 +134,38 @@ export function AdminCreateUserPage() {
               <dt>Transfer PIN</dt>
               <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <span className="mono-break">
-                  {created.profile.handoffTransferPin ?? '1111'}
+                  {created.profile.handoffTransferPin ?? created.transferPin ?? '1111'}
                 </span>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() => void copyText(created.profile.handoffTransferPin ?? '1111')}
+                  onClick={() =>
+                    void copyText(created.profile.handoffTransferPin ?? created.transferPin ?? '1111')
+                  }
                 >
                   Copy
                 </Button>
               </dd>
             </div>
+            {activationCodeDeliverables(
+              created.activationCodes ?? created.account.activationCodes,
+            ).map((item) => (
+              <div key={item.key}>
+                <dt>{item.label}</dt>
+                <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <span className="mono-break">{item.value}</span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void copyText(item.value)}
+                  >
+                    Copy
+                  </Button>
+                </dd>
+              </div>
+            ))}
             <div>
               <dt>Account number</dt>
               <dd>{formatAccountNumber(created.account.accountNumber)}</dd>
@@ -148,8 +176,12 @@ export function AdminCreateUserPage() {
             </div>
           </dl>
           <p className="muted" style={{ fontSize: '0.85rem' }}>
-            By default the temporary password matches the username, and the transfer PIN is{' '}
-            <strong>1111</strong>. Ask the holder to change both after first login.
+            Default temporary password is the <strong>username</strong> (for example{' '}
+            <code>jane_doe</code>). Transfer PIN defaults to <strong>1111</strong>. Ask the holder
+            to change both after first login.
+            {created.account.accountType === 'four_stage_verification'
+              ? ' Share the activation and transfer completion codes only when needed to process a transfer.'
+              : null}
           </p>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <Button type="button" onClick={() => navigate(`/admin/users/${created.profile.userId}`)}>
@@ -171,6 +203,9 @@ export function AdminCreateUserPage() {
                   accountNumber: '',
                   password: '',
                   initialBalance: '0',
+                  currency: 'USD',
+                  accountCountry: 'United States',
+                  routingNumber: '',
                 });
                 setUseUsernameAsPassword(true);
               }}
@@ -253,14 +288,14 @@ export function AdminCreateUserPage() {
               checked={useUsernameAsPassword}
               onChange={(e) => setUseUsernameAsPassword(e.target.checked)}
             />
-            <span>Use username as temporary password</span>
+            <span>Use default temporary password (username)</span>
           </label>
 
           {!useUsernameAsPassword ? (
             <Field
               label="Temporary password"
               htmlFor="password"
-              hint="Leave blank to fall back to the username"
+              hint="Leave blank to use the username as password"
             >
               <Input
                 id="password"
@@ -272,7 +307,8 @@ export function AdminCreateUserPage() {
             </Field>
           ) : (
             <Alert tone="info">
-              Temporary password will be set to the username and shown in deliverables after create.
+              Temporary password will be the <strong>username</strong> and shown
+              in deliverables after create.
             </Alert>
           )}
         </div>
@@ -331,6 +367,44 @@ export function AdminCreateUserPage() {
                 step="0.01"
                 value={form.initialBalance}
                 onChange={(e) => update('initialBalance', e.target.value)}
+              />
+            </Field>
+            <Field label="Currency" htmlFor="currency" hint="Wallet currency for this account">
+              <Select
+                id="currency"
+                value={form.currency}
+                onChange={(e) => update('currency', e.target.value)}
+              >
+                {ACCOUNT_CURRENCIES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Account country" htmlFor="accountCountry">
+              <Select
+                id="accountCountry"
+                value={form.accountCountry}
+                onChange={(e) => update('accountCountry', e.target.value)}
+              >
+                {ACCOUNT_COUNTRIES.map((country) => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Routing number"
+              htmlFor="routingNumber"
+              hint="Optional bank routing / sort code"
+            >
+              <Input
+                id="routingNumber"
+                autoComplete="off"
+                value={form.routingNumber}
+                onChange={(e) => update('routingNumber', e.target.value)}
               />
             </Field>
           </div>

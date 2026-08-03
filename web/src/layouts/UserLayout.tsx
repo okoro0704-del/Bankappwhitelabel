@@ -1,17 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { BrandMark } from '../tenant/BrandMark';
 import { useTenant } from '../tenant/TenantProvider';
+import { clearActiveTransferId } from '../transfer/session';
 import { fullName } from '../utils/format';
 
 const USER_NAV = [
-  { to: '/app', label: 'Dashboard', icon: '⌂', end: true },
-  { to: '/app/transfer', label: 'Transfer', icon: '↗', end: false },
-  { to: '/app/transactions', label: 'Transactions', icon: '☰', end: false },
-  { to: '/app/account', label: 'Account', icon: '▭', end: false },
-  { to: '/app/profile', label: 'Security', icon: '◎', end: false },
+  { to: '/app', label: 'Dashboard', icon: '⌂', end: true, freshTransfer: false },
+  { to: '/app/transfer', label: 'Transfer', icon: '↗', end: false, freshTransfer: true },
+  { to: '/app/transactions', label: 'Transactions', icon: '☰', end: false, freshTransfer: false },
+  { to: '/app/account', label: 'Account', icon: '▭', end: false, freshTransfer: false },
+  { to: '/app/profile', label: 'Security', icon: '◎', end: false, freshTransfer: false },
 ];
+
+/** Clear stale transfer resume state; hard-reload when already on Transfer so stuck UI cannot persist. */
+function goToFreshTransfer(event: MouseEvent) {
+  clearActiveTransferId();
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const onTransfer = path.endsWith('/app/transfer');
+  const hasTransferQuery = new URLSearchParams(window.location.search).has('transferId');
+  if (onTransfer || hasTransferQuery) {
+    event.preventDefault();
+    window.location.assign(`${window.location.origin}/app/transfer`);
+  }
+}
 
 export function UserLayout() {
   const { appUser, signOut } = useAuth();
@@ -24,7 +37,7 @@ export function UserLayout() {
   const applicationName = branding?.applicationName ?? 'Application';
 
   useEffect(() => {
-    const onDoc = (event: MouseEvent) => {
+    const onDoc = (event: globalThis.MouseEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) {
         setMenuOpen(false);
       }
@@ -60,6 +73,7 @@ export function UserLayout() {
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                  onClick={item.freshTransfer ? goToFreshTransfer : undefined}
                 >
                   <span className="nav-icon" aria-hidden>
                     {item.icon}
@@ -95,7 +109,13 @@ export function UserLayout() {
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
             >
-              <span className="avatar">{initials}</span>
+              <span className="avatar">
+                {appUser?.avatarUrl ? (
+                  <img src={appUser.avatarUrl} alt="" className="avatar-img" />
+                ) : (
+                  initials
+                )}
+              </span>
               <span>{name || 'Account'}</span>
             </button>
             {menuOpen ? (
@@ -130,7 +150,10 @@ export function UserLayout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                onClick={() => setMobileOpen(false)}
+                onClick={(event) => {
+                  setMobileOpen(false);
+                  if (item.freshTransfer) goToFreshTransfer(event);
+                }}
               >
                 <span className="nav-icon" aria-hidden>
                   {item.icon}

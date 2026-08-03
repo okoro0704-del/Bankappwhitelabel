@@ -65,6 +65,7 @@ export function getFriendlyErrorMessage(error: unknown): string {
         'FORBIDDEN',
         'NOT_FOUND',
         'INVALID_CREDENTIALS',
+        'NETWORK_ERROR',
       ].includes(error.code)
     ) {
       return error.message;
@@ -72,6 +73,9 @@ export function getFriendlyErrorMessage(error: unknown): string {
     return FRIENDLY[error.code] ?? error.message ?? FRIENDLY.INTERNAL_ERROR;
   }
   if (error instanceof Error && error.message) {
+    if (/failed to fetch|networkerror|load failed/i.test(error.message)) {
+      return 'Could not reach the database. Run supabase/migrations/20260803200000_fix_admin_create_user_rpc.sql in the Supabase SQL Editor, wait a few seconds, then try again.';
+    }
     return error.message;
   }
   return FRIENDLY.INTERNAL_ERROR;

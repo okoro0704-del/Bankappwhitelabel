@@ -5,6 +5,7 @@ import { ApiError, getFriendlyErrorMessage } from '../../api/errors';
 import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { Field, Input, Textarea } from '../../components/ui/Field';
+import { useToast } from '../../components/ui/Toast';
 import {
   CompletedPanel,
   FailedPanel,
@@ -19,7 +20,14 @@ import {
   readActiveTransferId,
   rememberActiveTransferId,
 } from '../../transfer/session';
-import { isTerminalTransferStatus, isVerificationStatus, stageFromStatus } from '../../transfer/visualProgress';
+import {
+  isTerminalTransferStatus,
+  isVerificationStatus,
+  progressFloorForStage,
+  progressGateForStage,
+  stageFromStatus,
+} from '../../transfer/visualProgress';
+import { MOCK_BANKS } from '../../data/banks';
 import { createIdempotencyKey, formatMoney } from '../../utils/format';
 import type {
   Account,
@@ -47,7 +55,8 @@ function limitReachedMessage(code?: string | null, fallback?: string | null): st
 }
 
 export function TransferPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { pushToast } = useToast();
   const [bootstrapping, setBootstrapping] = useState(true);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -67,11 +76,76 @@ export function TransferPage() {
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [failureMessage, setFailureMessage] = useState('Your transfer could not be completed.');
+  const [progressFrom, setProgressFrom] = useState(0);
+  const [progressTarget, setProgressTarget] = useState(12);
+  const [afterProgress, setAfterProgress] = useState<'verification' | 'completed' | null>(null);
 
   const idempotencyKeyRef = useRef<string | null>(null);
-  const activeGuard = step === 'processing' || step === 'verification';
+  const hasLiveTransfer = Boolean(transfer?.id || action?.transferId);
+  // Never block navigation on a broken/missing transfer — that freezes the whole app shell.
+  const activeGuard =
+    !bootstrapping &&
+    !bootstrapError &&
+    hasLiveTransfer &&
+    (step === 'processing' || step === 'verification');
 
   const blocker = useBlocker(activeGuard);
+
+  const syncTransferInUrl = useCallback(
+    (transferId: string | null) => {
+      const current = searchParams.get('transferId');
+      if (transferId) {
+        if (current !== transferId) {
+          setSearchParams({ transferId }, { replace: true });
+        }
+        return;
+      }
+      if (current) {
+        setSearchParams({}, { replace: true });
+      }
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const runProgressToVerification = useCallback((stage: number, skipAnimation = false) => {
+    const gate = progressGateForStage(stage);
+    const floor = progressFloorForStage(stage);
+    setCode('');
+    setCodeError(null);
+    if (skipAnimation) {
+      setProgressFrom(gate);
+      setProgressTarget(gate);
+      setAfterProgress(null);
+      setStep('verification');
+      return;
+    }
+    setProgressFrom(floor);
+    setProgressTarget(gate);
+    setAfterProgress('verification');
+    setProcessingMessage(
+      stage <= 1 ? 'Processing your transfer…' : 'Continuing your transfer…',
+    );
+    setStep('processing');
+  }, []);
+
+  const runProgressToCompleted = useCallback((fromStage: number) => {
+    setProgressFrom(progressGateForStage(fromStage));
+    setProgressTarget(100);
+    setAfterProgress('completed');
+    setProcessingMessage('Finalizing your transfer…');
+    setStep('processing');
+  }, []);
+
+  const onProgressReached = useCallback(() => {
+    setAfterProgress((pending) => {
+      if (pending === 'verification') {
+        setStep('verification');
+      } else if (pending === 'completed') {
+        setStep('completed');
+      }
+      return null;
+    });
+  }, []);
 
   useEffect(() => {
     if (!activeGuard) return;
@@ -96,6 +170,7 @@ export function TransferPage() {
 
       if (transferId) {
         rememberActiveTransferId(transferId);
+        syncTransferInUrl(transferId);
       }
 
       if (next.transfer) {
@@ -110,13 +185,17 @@ export function TransferPage() {
 
       if (next.status === 'completed') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         await refreshWallet().catch(() => undefined);
-        setStep('completed');
+        const stageDone =
+          next.stage || next.transfer?.currentStage || existing?.currentStage || 4;
+        runProgressToCompleted(Number(stageDone) || 4);
         return;
       }
 
       if (next.status === 'restricted') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         await refreshWallet().catch(() => undefined);
         setStep('restricted');
         return;
@@ -124,6 +203,7 @@ export function TransferPage() {
 
       if (next.status === 'failed') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         setFailureMessage(
           limitReachedMessage(next.reasonCode, next.reason || next.transfer?.failureReason),
         );
@@ -140,24 +220,41 @@ export function TransferPage() {
         }
         const stageInfo = await api.getVerification(transferId);
         setVerification(stageInfo);
-        setCode('');
-        setCodeError(null);
-        setStep('verification');
+        const stage =
+          stageInfo.stage ||
+          next.stage ||
+          next.transfer?.currentStage ||
+          1;
+        runProgressToVerification(stage);
       }
     },
-    [refreshWallet],
+    [refreshWallet, runProgressToCompleted, runProgressToVerification, syncTransferInUrl],
   );
 
   const resumeFromTransferId = useCallback(
     async (transferId: string) => {
+      let record: Transfer;
+      try {
+        record = await api.getTransfer(transferId);
+      } catch (err) {
+        clearActiveTransferId();
+        syncTransferInUrl(null);
+        setAction(null);
+        setTransfer(null);
+        setVerification(null);
+        setAfterProgress(null);
+        setStep('form');
+        throw err;
+      }
+
       setProcessingMessage('Restoring transfer status…');
-      setStep('processing');
-      const record = await api.getTransfer(transferId);
       setTransfer(record);
       rememberActiveTransferId(transferId);
+      syncTransferInUrl(transferId);
 
       if (record.status === 'completed') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         await refreshWallet().catch(() => undefined);
         setAction({
           status: 'completed',
@@ -172,6 +269,7 @@ export function TransferPage() {
 
       if (record.status === 'restricted') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         setAction({
           status: 'restricted',
           transferId: record.id,
@@ -186,6 +284,7 @@ export function TransferPage() {
 
       if (record.status === 'failed' || record.status === 'cancelled') {
         clearActiveTransferId();
+        syncTransferInUrl(null);
         setFailureMessage(
           limitReachedMessage(record.reasonCode, record.failureReason),
         );
@@ -202,17 +301,29 @@ export function TransferPage() {
       }
 
       if (isVerificationStatus(record.status)) {
-        const stageInfo = await api.getVerification(transferId);
+        let stageInfo: VerificationStageResponse;
+        try {
+          stageInfo = await api.getVerification(transferId);
+        } catch (err) {
+          clearActiveTransferId();
+          syncTransferInUrl(null);
+          setAction(null);
+          setTransfer(null);
+          setVerification(null);
+          setStep('form');
+          throw err;
+        }
         setVerification(stageInfo);
+        const stage = (stageInfo.stage as 1 | 2 | 3 | 4) || 1;
         setAction({
           status: 'verification_required',
           transferId: record.id,
           reference: record.reference,
           amount: record.amount,
-          stage: (stageInfo.stage as 1 | 2 | 3 | 4) || 1,
+          stage,
           transfer: record,
         });
-        setStep('verification');
+        runProgressToVerification(stage, true);
         return;
       }
 
@@ -224,16 +335,22 @@ export function TransferPage() {
         amount: record.amount,
         transfer: record,
       });
+      setProgressFrom(8);
+      setProgressTarget(18);
+      setAfterProgress(null);
       setProcessingMessage('Transfer is still processing…');
       setStep('processing');
     },
-    [refreshWallet],
+    [refreshWallet, runProgressToVerification, syncTransferInUrl],
   );
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
+      // Always start transferable — never trap the shell on a stale resume.
+      clearActiveTransferId();
+
       try {
         const [walletData, accountData] = await Promise.all([
           api.getWallet(),
@@ -243,14 +360,45 @@ export function TransferPage() {
         setWallet(walletData);
         setAccount(accountData);
 
-        const resumeId =
-          searchParams.get('transferId') || readActiveTransferId() || null;
-        if (resumeId) {
+        // Only resume when the URL explicitly asks — nav to /app/transfer must open a fresh form.
+        const resumeId = searchParams.get('transferId');
+        if (!resumeId) {
+          syncTransferInUrl(null);
+          return;
+        }
+
+        try {
           await resumeFromTransferId(resumeId);
+        } catch {
+          clearActiveTransferId();
+          if (!cancelled) {
+            syncTransferInUrl(null);
+            setAction(null);
+            setTransfer(null);
+            setVerification(null);
+            setAfterProgress(null);
+            setStep('form');
+            setBootstrapError(null);
+            setFormError(
+              'A previous transfer could not be restored. You can start a new transfer below.',
+            );
+          }
         }
       } catch (err) {
         if (!cancelled) {
-          setBootstrapError(getFriendlyErrorMessage(err));
+          clearActiveTransferId();
+          syncTransferInUrl(null);
+          setStep('form');
+          // Soft-fail: keep the page usable instead of a dead-end ErrorState whenever possible.
+          const message = getFriendlyErrorMessage(err);
+          if (/transfer not found|not found/i.test(message)) {
+            setBootstrapError(null);
+            setFormError(
+              'A previous transfer could not be restored. You can start a new transfer below.',
+            );
+          } else {
+            setBootstrapError(message);
+          }
         }
       } finally {
         if (!cancelled) setBootstrapping(false);
@@ -314,6 +462,9 @@ export function TransferPage() {
     setSubmitting(true);
     setFormError(null);
     setProcessingMessage('Submitting your transfer…');
+    setProgressFrom(0);
+    setProgressTarget(18);
+    setAfterProgress(null);
     setStep('processing');
 
     const key = idempotencyKeyRef.current ?? createIdempotencyKey('xfer');
@@ -333,18 +484,23 @@ export function TransferPage() {
     } catch (err) {
       if (err instanceof ApiError && err.code === 'DUPLICATE_REQUEST') {
         const activeId = readActiveTransferId() || searchParams.get('transferId');
-        if (activeId) {
-          await resumeFromTransferId(activeId);
-          return;
-        }
         try {
+          if (activeId) {
+            await resumeFromTransferId(activeId);
+            return;
+          }
           const list = await api.getTransfers({ limit: 1, offset: 0 });
           if (list.items[0]) {
             await resumeFromTransferId(list.items[0].id);
             return;
           }
         } catch {
-          // fall through
+          clearActiveTransferId();
+          setFormError(
+            'Could not restore the previous transfer. Please start a new transfer.',
+          );
+          setStep('form');
+          return;
         }
       }
 
@@ -434,21 +590,19 @@ export function TransferPage() {
       const result = await api.submitVerification(transferId, code);
       await applyAction(result, transfer);
     } catch (err) {
+      let message = getFriendlyErrorMessage(err);
       if (err instanceof ApiError) {
         if (err.code === 'INVALID_VERIFICATION_CODE') {
-          setCodeError('Incorrect verification code');
+          message = 'Incorrect verification code';
         } else if (err.code === 'VERIFICATION_EXPIRED') {
-          setCodeError('Verification code expired');
+          message = 'Verification code expired';
         } else if (err.code === 'TOO_MANY_VERIFICATION_ATTEMPTS') {
-          setCodeError(getFriendlyErrorMessage(err));
-        } else {
-          setCodeError(getFriendlyErrorMessage(err));
+          message = getFriendlyErrorMessage(err);
         }
-      } else {
-        setCodeError(getFriendlyErrorMessage(err));
       }
+      setCodeError(null);
+      pushToast(message, 'error');
 
-      // Refresh authoritative stage/expiry after failed attempt.
       try {
         const stageInfo = await api.getVerification(transferId);
         setVerification(stageInfo);
@@ -467,6 +621,7 @@ export function TransferPage() {
 
   function resetToNewTransfer() {
     clearActiveTransferId();
+    syncTransferInUrl(null);
     idempotencyKeyRef.current = null;
     setDraft(emptyDraft);
     setFieldErrors({});
@@ -477,6 +632,10 @@ export function TransferPage() {
     setVerification(null);
     setCode('');
     setCodeError(null);
+    setFailureMessage('Your transfer could not be completed.');
+    setProgressFrom(0);
+    setProgressTarget(12);
+    setAfterProgress(null);
     setStep('form');
     void refreshWallet().catch(() => undefined);
   }
@@ -492,10 +651,57 @@ export function TransferPage() {
 
   if (bootstrapError) {
     return (
-      <ErrorState
-        description={bootstrapError}
-        onRetry={() => window.location.reload()}
-      />
+      <div className="page stack">
+        <ErrorState
+          description={bootstrapError}
+          onRetry={() => {
+            clearActiveTransferId();
+            syncTransferInUrl(null);
+            setBootstrapError(null);
+            setFormError(null);
+            setStep('form');
+            setBootstrapping(true);
+            window.location.assign('/app/transfer');
+          }}
+        />
+        <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+          <Link
+            className="btn btn-primary"
+            to="/app"
+            onClick={() => {
+              clearActiveTransferId();
+              syncTransferInUrl(null);
+            }}
+          >
+            Back to dashboard
+          </Link>
+          <Link
+            className="btn btn-secondary"
+            to="/app/transactions"
+            onClick={() => {
+              clearActiveTransferId();
+              syncTransferInUrl(null);
+            }}
+          >
+            View transactions
+          </Link>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              clearActiveTransferId();
+              syncTransferInUrl(null);
+              setBootstrapError(null);
+              setFormError(null);
+              setAction(null);
+              setTransfer(null);
+              setStep('form');
+            }}
+          >
+            Start a new transfer
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -527,6 +733,13 @@ export function TransferPage() {
             <Button
               variant="danger"
               onClick={() => {
+                clearActiveTransferId();
+                syncTransferInUrl(null);
+                setAction(null);
+                setTransfer(null);
+                setVerification(null);
+                setAfterProgress(null);
+                setStep('form');
                 blocker.proceed?.();
               }}
             >
@@ -538,7 +751,11 @@ export function TransferPage() {
 
       {step === 'form' ? (
         <form className="card card-pad stack" onSubmit={onContinueToReview}>
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
+          {formError ? (
+            <Alert tone="warning" title="Could not restore transfer">
+              {formError}
+            </Alert>
+          ) : null}
           <div className="form-section">
             <h2 className="form-section-title">Recipient</h2>
             <div className="grid-2">
@@ -565,13 +782,26 @@ export function TransferPage() {
                   required
                 />
               </Field>
-              <Field label="Recipient bank" htmlFor="recipientBank" error={fieldErrors.recipientBank}>
+              <Field
+                label="Recipient bank"
+                htmlFor="recipientBank"
+                error={fieldErrors.recipientBank}
+                hint="Start typing to pick from common banks"
+              >
                 <Input
                   id="recipientBank"
+                  list="mock-bank-names"
+                  autoComplete="off"
+                  placeholder="e.g. Chase, HSBC, Santander"
                   value={draft.recipientBank}
                   onChange={(e) => updateDraft('recipientBank', e.target.value)}
                   required
                 />
+                <datalist id="mock-bank-names">
+                  {MOCK_BANKS.map((bank) => (
+                    <option key={bank} value={bank} />
+                  ))}
+                </datalist>
               </Field>
               <Field label="Amount" htmlFor="amount" error={fieldErrors.amount}>
                 <Input
@@ -652,13 +882,15 @@ export function TransferPage() {
           action={action}
           currency={currency}
           message={processingMessage}
+          progressPercent={progressTarget}
+          animateFrom={progressFrom}
+          onProgressReached={afterProgress ? onProgressReached : undefined}
         />
       ) : null}
 
       {step === 'verification' ? (
         <VerificationPanel
           stage={currentStage}
-          expiresAt={verification?.expiresAt}
           currency={currency}
           transfer={transfer}
           action={action}
@@ -667,11 +899,17 @@ export function TransferPage() {
           onSubmit={() => void onSubmitVerification()}
           submitting={submitting}
           error={codeError}
+          onCancel={resetToNewTransfer}
         />
       ) : null}
 
       {step === 'completed' ? (
-        <CompletedPanel transfer={transfer} action={action} wallet={wallet} />
+        <CompletedPanel
+          transfer={transfer}
+          action={action}
+          wallet={wallet}
+          onMakeAnother={resetToNewTransfer}
+        />
       ) : null}
 
       {step === 'failed' ? (
@@ -680,6 +918,7 @@ export function TransferPage() {
           action={action}
           currency={currency}
           message={failureMessage}
+          onMakeAnother={resetToNewTransfer}
         />
       ) : null}
 

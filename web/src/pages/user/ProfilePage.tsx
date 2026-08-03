@@ -13,7 +13,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { formatAccountNumber, formatDate, fullName } from '../../utils/format';
 
 export function ProfilePage() {
-  const { appUser, session, signOut } = useAuth();
+  const { appUser, session, signOut, refreshAppUser } = useAuth();
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const profile = useAsyncData(() => api.getProfile(), []);
@@ -31,6 +31,8 @@ export function ProfilePage() {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const pinConfigured = Boolean(pinStatus.data?.configured);
 
@@ -60,6 +62,47 @@ export function ProfilePage() {
   }
 
   const p = profile.data;
+  const avatarUrl = p.avatarUrl || appUser?.avatarUrl || null;
+  const initials = `${p.firstName[0] ?? ''}${p.lastName[0] ?? ''}`.toUpperCase() || 'U';
+
+  async function onPhotoSelected(file: File | null) {
+    if (!file) return;
+    setPhotoError(null);
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Choose a JPEG, PNG, WebP, or GIF image.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoError('Photo must be 2 MB or smaller.');
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      await api.uploadProfilePhoto(file);
+      await profile.reload();
+      await refreshAppUser();
+      pushToast('Profile photo updated', 'success');
+    } catch (err) {
+      setPhotoError(getFriendlyErrorMessage(err));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function onRemovePhoto() {
+    setPhotoError(null);
+    setPhotoBusy(true);
+    try {
+      await api.clearProfilePhoto();
+      await profile.reload();
+      await refreshAppUser();
+      pushToast('Profile photo removed', 'success');
+    } catch (err) {
+      setPhotoError(getFriendlyErrorMessage(err));
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   async function onChangePassword(event: FormEvent) {
     event.preventDefault();
@@ -147,6 +190,46 @@ export function ProfilePage() {
       <div className="grid-2">
         <div className="card card-pad form-section">
           <h2 className="form-section-title">Personal information</h2>
+          <div className="row" style={{ alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="avatar avatar-lg" />
+            ) : (
+              <span className="avatar avatar-lg" aria-hidden>
+                {initials}
+              </span>
+            )}
+            <div className="stack" style={{ gap: '0.5rem', flex: 1 }}>
+              <label className="btn btn-secondary btn-sm" style={{ width: 'fit-content', cursor: 'pointer' }}>
+                {photoBusy ? 'Uploading…' : 'Upload photo'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  hidden
+                  disabled={photoBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    e.target.value = '';
+                    void onPhotoSelected(file);
+                  }}
+                />
+              </label>
+              {avatarUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={photoBusy}
+                  onClick={() => void onRemovePhoto()}
+                >
+                  Remove photo
+                </Button>
+              ) : null}
+              <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                JPEG, PNG, WebP, or GIF up to 2 MB.
+              </p>
+            </div>
+          </div>
+          {photoError ? <Alert tone="error">{photoError}</Alert> : null}
           <dl className="definition-list">
             <div>
               <dt>Name</dt>

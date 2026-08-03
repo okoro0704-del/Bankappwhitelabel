@@ -16,6 +16,7 @@ import {
   formatMoney,
   fullName,
 } from '../../utils/format';
+import { activationCodeDeliverables } from '../../utils/activationCodes';
 import { useMemo, useState } from 'react';
 import type { Transaction } from '../../types/api';
 
@@ -83,6 +84,11 @@ export function AdminUserDetailPage() {
   const tempPassword = profile.handoffTempPassword?.trim() || profile.username;
   const transferPin = profile.handoffTransferPin?.trim() || '1111';
   const loginUrl = `${window.location.origin}/login`;
+  const activationItems = activationCodeDeliverables(
+    detail.data.activationCodes ?? account.activationCodes,
+  );
+  const hasActivationCodes = activationItems.length > 0;
+  const isFourStage = account.accountType === 'four_stage_verification';
 
   async function copyText(value: string) {
     await navigator.clipboard.writeText(value);
@@ -109,6 +115,22 @@ export function AdminUserDetailPage() {
     }
   }
 
+  async function issueActivationCodes() {
+    if (hasActivationCodes) {
+      const ok = window.confirm(
+        'Replace the existing four-stage verification codes? The old codes will stop working for new transfers.',
+      );
+      if (!ok) return;
+    }
+    try {
+      const result = await api.adminIssueActivationCodes(account.id);
+      pushToast(result.message, 'success');
+      await detail.reload();
+    } catch (err) {
+      pushToast(getFriendlyErrorMessage(err), 'error');
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -120,7 +142,12 @@ export function AdminUserDetailPage() {
           <Link className="btn btn-secondary" to="/admin/users">
             Back
           </Link>
-          <Link className="btn btn-primary" to={`/admin/funding?accountId=${account.id}`}>
+          {isFourStage ? (
+            <Button type="button" variant="primary" onClick={() => void issueActivationCodes()}>
+              {hasActivationCodes ? '🔑 Regenerate codes' : '🔑 Generate 4 codes'}
+            </Button>
+          ) : null}
+          <Link className="btn btn-secondary" to={`/admin/funding?accountId=${account.id}`}>
             Fund wallet
           </Link>
           <Button type="button" variant="secondary" onClick={() => void toggleStatus()}>
@@ -131,6 +158,47 @@ export function AdminUserDetailPage() {
           </Button>
         </div>
       </div>
+
+      {isFourStage ? (
+        <div className="card card-pad stack" style={{ marginBottom: '1.25rem' }}>
+          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.1rem', margin: 0 }}>🔑 Transfer verification codes</h2>
+              <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                Four codes the customer must enter during a transfer. Generate them here — they are
+                not shown in the customer app.
+              </p>
+            </div>
+            <Button type="button" variant="primary" onClick={() => void issueActivationCodes()}>
+              {hasActivationCodes ? 'Regenerate codes' : 'Generate 4 codes'}
+            </Button>
+          </div>
+          {!hasActivationCodes ? (
+            <Alert tone="warning" title="No codes yet">
+              Create the four codes before this account holder starts a transfer.
+            </Alert>
+          ) : (
+            <dl className="definition-list">
+              {activationItems.map((item) => (
+                <div key={item.key}>
+                  <dt>{item.label}</dt>
+                  <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <span className="mono-break">{item.value}</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void copyText(item.value)}
+                    >
+                      Copy
+                    </Button>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      ) : null}
 
       <div className="card card-pad stack" style={{ marginBottom: '1.25rem' }}>
         <h2 style={{ fontSize: '1.1rem' }}>User actions</h2>
@@ -143,7 +211,7 @@ export function AdminUserDetailPage() {
             {account.accountStatus === 'active' ? 'Suspend account' : 'Activate account'}
           </Button>
           <Button type="button" variant="primary" onClick={() => void resetPasswordToUsername()}>
-            Set login password to username
+            Reset login password (to username)
           </Button>
           <Button type="button" variant="danger" onClick={() => void deleteUser()}>
             Delete user
@@ -195,8 +263,9 @@ export function AdminUserDetailPage() {
                 ) : null}
               </div>
               <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
-                Defaults to the username when no separate password was stored. Use{' '}
-                <strong>Set login password to username</strong> above so Auth accepts it.
+                Default login password is the <strong>username</strong> (example:{' '}
+                <code>{profile.username}</code>). Use{' '}
+                <strong>Set login password to username</strong> above to reset Auth to that value.
               </p>
             </dd>
           </div>
@@ -268,6 +337,18 @@ export function AdminUserDetailPage() {
             <div>
               <dt>Account behavior</dt>
               <dd>{accountBehaviorLabel(account.accountType)}</dd>
+            </div>
+            <div>
+              <dt>Currency</dt>
+              <dd>{account.currency}</dd>
+            </div>
+            <div>
+              <dt>Account country</dt>
+              <dd>{account.accountCountry || '—'}</dd>
+            </div>
+            <div>
+              <dt>Routing number</dt>
+              <dd>{account.routingNumber || '—'}</dd>
             </div>
             <div>
               <dt>Account status</dt>

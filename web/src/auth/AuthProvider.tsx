@@ -12,6 +12,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { api } from '../api/endpoints';
 import { ApiError, getFriendlyErrorMessage } from '../api/errors';
+import { buildLoginPasswordCandidates } from './loginPassword';
 import { getSupabase } from './supabase';
 import type { SessionUser } from '../types/api';
 
@@ -140,13 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       const identifier = usernameOrEmail.trim();
       let email = identifier;
-      const passwordCandidates = Array.from(
-        new Set([password, password.trim(), password.trim().toLowerCase()].filter(Boolean)),
-      );
+      const passwordCandidates = buildLoginPasswordCandidates(identifier, password);
 
       if (!identifier.includes('@')) {
         const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
-          p_identifier: identifier,
+          p_identifier: identifier.toLowerCase(),
         });
         if (resolveError) {
           throw new ApiError('INTERNAL_ERROR', resolveError.message, 500);
@@ -178,9 +177,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (authError || !sessionData?.session) {
-        const message = (authError?.message ?? '').toLowerCase().includes('invalid')
+        const raw = authError?.message ?? 'Unable to sign in.';
+        const lower = raw.toLowerCase();
+        const message = lower.includes('invalid')
           ? 'Invalid username or password.'
-          : (authError?.message ?? 'Unable to sign in.');
+          : lower.includes('weak')
+            ? `${raw} Customers use their username as the password. Admins use the temporary password from handoff.`
+            : raw;
         setError(message);
         throw new ApiError('INVALID_CREDENTIALS', message, 401);
       }

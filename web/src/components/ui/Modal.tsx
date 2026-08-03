@@ -71,7 +71,7 @@ export function Modal({
         <div className="card-header">
           <h2 id={titleId}>{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close dialog">
-            Close
+            ✕
           </Button>
         </div>
         {children}

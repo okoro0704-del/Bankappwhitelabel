@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
+import { ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
@@ -75,6 +75,18 @@ export function AccountPage() {
               <dd>{productTypeLabel(data.productType)}</dd>
             </div>
             <div>
+              <dt>Currency</dt>
+              <dd>{wallet.data.currency}</dd>
+            </div>
+            <div>
+              <dt>Account country</dt>
+              <dd>{data.accountCountry || '—'}</dd>
+            </div>
+            <div>
+              <dt>Routing number</dt>
+              <dd>{data.routingNumber || '—'}</dd>
+            </div>
+            <div>
               <dt>Status</dt>
               <dd>
                 <StatusBadge status={data.accountStatus} />
@@ -117,11 +129,6 @@ export function AccountPage() {
           </div>
         </div>
       </div>
-
-      <Alert tone="info">
-        Your account is shown as a {productTypeLabel(data.productType).toLowerCase()}. Transfer
-        rules are applied securely in the background when you send money.
-      </Alert>
     </div>
   );
 }

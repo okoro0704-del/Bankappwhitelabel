@@ -5,6 +5,8 @@ interface VerificationCodeInputProps {
   onChange: (digits: string) => void;
   disabled?: boolean;
   error?: string | null;
+  label?: string;
+  hint?: string;
 }
 
 export function VerificationCodeInput({
@@ -12,6 +14,8 @@ export function VerificationCodeInput({
   onChange,
   disabled = false,
   error,
+  label = 'Verification code',
+  hint = 'Enter the 6-digit code provided by your bank',
 }: VerificationCodeInputProps) {
   const id = useId();
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
@@ -55,7 +59,7 @@ export function VerificationCodeInput({
   return (
     <div className="field">
       <label className="field-label" id={`${id}-label`} htmlFor={`${id}-0`}>
-        Verification code
+        {label}
       </label>
       <div
         className="xfer-code-grid"
@@ -96,7 +100,7 @@ export function VerificationCodeInput({
           {error}
         </p>
       ) : (
-        <p className="field-hint">Enter the 6-digit code for this stage</p>
+        <p className="field-hint">{hint}</p>
       )}
     </div>
   );

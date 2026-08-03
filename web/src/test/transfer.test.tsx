@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { TransferPage } from '../pages/user/TransferPage';
 import { ToastProvider } from '../components/ui/Toast';
-import { visualProgressPercent, isVerificationStatus } from '../transfer/visualProgress';
+import { visualProgressPercent, isVerificationStatus, verificationCodeTitle } from '../transfer/visualProgress';
 import { clearActiveTransferId, rememberActiveTransferId } from '../transfer/session';
 import { ApiError } from '../api/errors';
 
@@ -90,12 +90,19 @@ async function fillAndConfirm(user: ReturnType<typeof userEvent.setup>) {
 
 describe('visual progress helpers', () => {
   it('maps stages to visual percentages only', () => {
-    expect(visualProgressPercent({ status: 'verification_required', stage: 1 })).toBe(25);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 2 })).toBe(50);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 3 })).toBe(75);
-    expect(visualProgressPercent({ status: 'verification_required', stage: 4 })).toBe(90);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 1 })).toBe(35);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 2 })).toBe(68);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 3 })).toBe(85);
+    expect(visualProgressPercent({ status: 'verification_required', stage: 4 })).toBe(95);
     expect(visualProgressPercent({ status: 'completed' })).toBe(100);
     expect(isVerificationStatus('verification_stage_3')).toBe(true);
+  });
+
+  it('uses named verification codes instead of stage numbers', () => {
+    expect(verificationCodeTitle(1)).toBe('Account Activation Code');
+    expect(verificationCodeTitle(2)).toBe('International Transfer Fee Code');
+    expect(verificationCodeTitle(3)).toBe('Anti Fraud Code');
+    expect(verificationCodeTitle(4)).toBe('Wire Transfer Tax Code');
   });
 });
 
@@ -253,8 +260,10 @@ describe('transfer workflow', () => {
     renderTransfer();
     await fillAndConfirm(user);
 
-    expect(await screen.findByText(/additional verification required/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/verification stage 1 of 4/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^account activation code$/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/verification stage \d of 4/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/stage \d of 4/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/code expires/i)).not.toBeInTheDocument();
 
     async function enterCode(code: string) {
       const boxes = screen.getAllByLabelText(/digit \d of 6/i);
@@ -266,17 +275,22 @@ describe('transfer workflow', () => {
     }
 
     await enterCode('111111');
-    expect(await screen.findByLabelText(/verification stage 2 of 4/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /^international transfer fee code$/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/stage \d of 4/i)).not.toBeInTheDocument();
 
     await enterCode('222222');
-    expect(await screen.findByLabelText(/verification stage 3 of 4/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^anti fraud code$/i })).toBeInTheDocument();
 
     await enterCode('333333');
-    expect(await screen.findByLabelText(/verification stage 4 of 4/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /^wire transfer tax code$/i }),
+    ).toBeInTheDocument();
 
     await enterCode('444444');
     expect(await screen.findByText(/transfer completed/i)).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('maps verification and balance errors to friendly UI', async () => {
     const user = userEvent.setup();
@@ -299,12 +313,13 @@ describe('transfer workflow', () => {
 
     renderTransfer();
     await fillAndConfirm(user);
-    expect(await screen.findByText(/additional verification required/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^account activation code$/i })).toBeInTheDocument();
 
     const boxes = screen.getAllByLabelText(/digit \d of 6/i);
     for (let i = 0; i < 6; i += 1) await user.type(boxes[i], String(i + 1));
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
     expect(await screen.findByText(/incorrect verification code/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
   });
 
   it('shows expired and too-many-attempts verification errors', async () => {
@@ -325,7 +340,7 @@ describe('transfer workflow', () => {
 
     renderTransfer();
     await fillAndConfirm(user);
-    await screen.findByText(/additional verification required/i);
+    await screen.findByRole('heading', { name: /^account activation code$/i });
 
     vi.mocked(api.submitVerification).mockRejectedValueOnce(
       new ApiError('VERIFICATION_EXPIRED', 'expired', 400),
@@ -334,6 +349,7 @@ describe('transfer workflow', () => {
     for (let i = 0; i < 6; i += 1) await user.type(boxes[i], '1');
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
     expect(await screen.findByText(/verification code expired/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
 
     vi.mocked(api.submitVerification).mockRejectedValueOnce(
       new ApiError('TOO_MANY_VERIFICATION_ATTEMPTS', 'stop', 400),
@@ -344,6 +360,7 @@ describe('transfer workflow', () => {
     }
     await user.click(screen.getByRole('button', { name: /^continue$/i }));
     expect(await screen.findByText(/too many incorrect attempts/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
   });
 
   it('surfaces insufficient balance and inactive account on review', async () => {
@@ -355,6 +372,7 @@ describe('transfer workflow', () => {
     renderTransfer();
     await fillAndConfirm(user);
     expect(await screen.findByText(/not enough balance/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
     expect(screen.getByRole('button', { name: /confirm transfer/i })).toBeInTheDocument();
 
     vi.mocked(api.createTransfer).mockRejectedValue(
@@ -378,10 +396,39 @@ describe('transfer workflow', () => {
 
     renderTransfer('/app/transfer?transferId=tr-1');
 
-    expect(await screen.findByText(/additional verification required/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/verification stage 2 of 4/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /^international transfer fee code$/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/verification stage \d of 4/i)).not.toBeInTheDocument();
     expect(api.getTransfer).toHaveBeenCalledWith('tr-1');
     expect(api.getVerification).toHaveBeenCalledWith('tr-1');
+  });
+
+  it('clears a stale transfer id and shows the form instead of freezing', async () => {
+    rememberActiveTransferId('tr-missing');
+    vi.mocked(api.getTransfer).mockRejectedValue(
+      new ApiError('NOT_FOUND', 'Transfer not found', 404),
+    );
+
+    renderTransfer();
+
+    expect(await screen.findByRole('heading', { name: /^transfer$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/recipient name/i)).toBeInTheDocument();
+    // Fresh /app/transfer must not auto-resume from sessionStorage.
+    expect(api.getTransfer).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
+  });
+
+  it('does not freeze when URL points at a missing transfer', async () => {
+    vi.mocked(api.getTransfer).mockRejectedValue(
+      new ApiError('NOT_FOUND', 'Transfer not found', 404),
+    );
+
+    renderTransfer('/app/transfer?transferId=tr-missing');
+
+    expect(await screen.findByLabelText(/recipient name/i)).toBeInTheDocument();
+    expect(await screen.findByText(/previous transfer could not be restored/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
   });
 
   it('recovers completed transfer from backend id', async () => {
