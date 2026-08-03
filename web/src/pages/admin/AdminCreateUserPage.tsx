@@ -126,17 +126,13 @@ export function AdminCreateUserPage() {
               <dt>Transfer PIN</dt>
               <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <span className="mono-break">
-                  {created.profile.handoffTransferPin ?? created.account.accountNumber.slice(-4)}
+                  {created.profile.handoffTransferPin ?? '1111'}
                 </span>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    void copyText(
-                      created.profile.handoffTransferPin ?? created.account.accountNumber.slice(-4),
-                    )
-                  }
+                  onClick={() => void copyText(created.profile.handoffTransferPin ?? '1111')}
                 >
                   Copy
                 </Button>
@@ -152,8 +148,8 @@ export function AdminCreateUserPage() {
             </div>
           </dl>
           <p className="muted" style={{ fontSize: '0.85rem' }}>
-            By default the temporary password matches the username. Ask the holder to change it after
-            first login.
+            By default the temporary password matches the username, and the transfer PIN is{' '}
+            <strong>1111</strong>. Ask the holder to change both after first login.
           </p>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <Button type="button" onClick={() => navigate(`/admin/users/${created.profile.userId}`)}>

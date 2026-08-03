@@ -241,8 +241,8 @@ export function ProfilePage() {
             {pinConfigured ? 'Change transfer PIN' : 'Set transfer PIN'}
           </h2>
           <p className="muted" style={{ margin: 0 }}>
-            Required to confirm transfers. Use 4–8 digits. If your bank gave you a temporary PIN,
-            you can replace it here.
+            Required to confirm transfers. Use 4–8 digits. The bank default is{' '}
+            <strong>1111</strong> until you set your own.
           </p>
           {pinStatus.error ? (
             <Alert tone="warning">

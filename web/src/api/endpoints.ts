@@ -384,7 +384,8 @@ export const api = {
           updatedAt: String(profileData.updatedAt),
           handoffTransferPin:
             (profileData.handoffTransferPin as string | null | undefined) ??
-            (String(accountData.accountNumber ?? '').slice(-4) || null),
+            (data.transferPin as string | null | undefined) ??
+            '1111',
         },
         account: {
           id: String(accountData.id),

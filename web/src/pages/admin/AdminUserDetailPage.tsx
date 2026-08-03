@@ -81,7 +81,7 @@ export function AdminUserDetailPage() {
   const { profile, account } = detail.data;
   const passwordWasSet = Boolean(profile.handoffTempPassword?.trim());
   const tempPassword = profile.handoffTempPassword?.trim() || profile.username;
-  const transferPin = profile.handoffTransferPin?.trim() || account.accountNumber.slice(-4);
+  const transferPin = profile.handoffTransferPin?.trim() || '1111';
   const loginUrl = `${window.location.origin}/login`;
 
   async function copyText(value: string) {
@@ -202,11 +202,17 @@ export function AdminUserDetailPage() {
           </div>
           <div>
             <dt>Transfer PIN</dt>
-            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-              <span className="mono-break">{transferPin}</span>
-              <Button type="button" variant="secondary" onClick={() => void copyText(transferPin)}>
-                Copy
-              </Button>
+            <dd className="stack" style={{ gap: '0.5rem' }}>
+              <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">{transferPin}</span>
+                <Button type="button" variant="secondary" onClick={() => void copyText(transferPin)}>
+                  Copy
+                </Button>
+              </div>
+              <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                Default transfer PIN is <strong>1111</strong> until the account holder changes it
+                under Security.
+              </p>
             </dd>
           </div>
         </dl>
