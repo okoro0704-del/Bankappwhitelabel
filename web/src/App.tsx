@@ -34,18 +34,10 @@ import { MasterCreateApplicationPage } from './pages/master/MasterCreateApplicat
 import { MasterApplicationDetailPage } from './pages/master/MasterApplicationDetailPage';
 import { MasterBrandingPage } from './pages/master/MasterBrandingPage';
 import { MasterHostGate } from './components/MasterHostGate';
-import { AuthProvider, useAuth } from './auth/AuthProvider';
-import { homePathForUser } from './auth/homePath';
+import { AuthProvider } from './auth/AuthProvider';
 import { ToastProvider } from './components/ui/Toast';
 import { TenantProvider } from './tenant/TenantProvider';
 import { CustomerTenantGate } from './tenant/CustomerTenantGate';
-
-function LandingOrHome() {
-  const { loading, appUser } = useAuth();
-  if (loading) return null;
-  if (appUser) return <Navigate to={homePathForUser(appUser)} replace />;
-  return <LandingPage />;
-}
 
 function RootLayout() {
   return (
@@ -71,7 +63,7 @@ export const router = createBrowserRouter([
       {
         element: <CustomerTenantGate />,
         children: [
-          { path: '/', element: <LandingOrHome /> },
+          { path: '/', element: <LandingPage /> },
           {
             element: <PublicOnlyRoute />,
             children: [

@@ -110,14 +110,14 @@ export function AdminHomePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Home deliverables</h1>
+          <h1>Home page</h1>
           <p className="page-subtitle">
-            Edit the public Home page for {applicationName}. Customers see this at your bank&apos;s
-            landing URL before login.
+            Edit the public bank website for {applicationName}. Customers see this at your bank home
+            address (<code>/</code>), not this editor.
           </p>
         </div>
         <Link className="btn btn-secondary" to="/" target="_blank" rel="noreferrer">
-          Preview Home
+          Preview bank home
         </Link>
       </div>
 

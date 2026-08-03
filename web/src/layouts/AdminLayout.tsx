@@ -7,7 +7,7 @@ import { fullName } from '../utils/format';
 
 const ADMIN_NAV = [
   { to: '/admin', label: 'Dashboard', icon: '⌂', end: true },
-  { to: '/admin/home', label: 'Home', icon: '◈', end: false },
+  { to: '/admin/home', label: 'Home page', icon: '◈', end: false },
   { to: '/admin/users', label: 'Users', icon: '◎', end: false },
   { to: '/admin/accounts', label: 'Accounts', icon: '▭', end: false },
   { to: '/admin/funding', label: 'Wallet funding', icon: '+', end: false },

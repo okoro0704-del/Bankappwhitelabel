@@ -652,7 +652,7 @@ export function MasterApplicationDetailPage() {
             onCopy={() => copyText(branding.applicationName || tenant.name)}
           />
           <HandoffRow
-            label="Home"
+            label="Bank home (public)"
             value={deployment.homeUrl}
             onCopy={() => copyText(deployment.homeUrl)}
           />
@@ -667,7 +667,7 @@ export function MasterApplicationDetailPage() {
             onCopy={() => copyText(deployment.adminDashboardUrl)}
           />
           <HandoffRow
-            label="Home dashboard (admin)"
+            label="Home page editor (admin)"
             value={deployment.adminHomeUrl}
             onCopy={() => copyText(deployment.adminHomeUrl)}
           />

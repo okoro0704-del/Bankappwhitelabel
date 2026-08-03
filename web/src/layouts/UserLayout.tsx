@@ -7,7 +7,8 @@ import { clearActiveTransferId } from '../transfer/session';
 import { fullName } from '../utils/format';
 
 const USER_NAV = [
-  { to: '/app', label: 'Dashboard', icon: '⌂', end: true, freshTransfer: false },
+  { to: '/', label: 'Home', icon: '⌂', end: true, freshTransfer: false },
+  { to: '/app', label: 'Dashboard', icon: '▦', end: true, freshTransfer: false },
   { to: '/app/transfer', label: 'Transfer', icon: '↗', end: false, freshTransfer: true },
   { to: '/app/transactions', label: 'Transactions', icon: '☰', end: false, freshTransfer: false },
   { to: '/app/account', label: 'Account', icon: '▭', end: false, freshTransfer: false },

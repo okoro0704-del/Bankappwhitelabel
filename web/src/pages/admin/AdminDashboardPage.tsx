@@ -181,8 +181,8 @@ export function AdminDashboardPage() {
           <span className="muted">Search and manage profiles</span>
         </Link>
         <Link className="quick-action" to="/admin/home">
-          <strong>Home deliverables</strong>
-          <span className="muted">Edit the public Home page</span>
+          <strong>Home page</strong>
+          <span className="muted">Edit the public bank website</span>
         </Link>
         <Link className="quick-action" to="/admin/funding">
           <strong>Wallet funding</strong>

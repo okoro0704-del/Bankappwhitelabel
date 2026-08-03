@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider';
 import { BrandMark } from '../../tenant/BrandMark';
 import { sanitizePublicUrl } from '../../tenant/branding';
 import { defaultHomeContent, sanitizeHomeContent } from '../../tenant/homeContent';
 import { useTenant } from '../../tenant/TenantProvider';
 
 export function LandingPage() {
+  const { appUser } = useAuth();
   const { branding, config } = useTenant();
   const applicationName = branding?.applicationName ?? config?.name ?? 'Application';
   const supportEmail = branding?.supportEmail;
@@ -14,6 +16,12 @@ export function LandingPage() {
     branding?.homeContent ?? defaultHomeContent(applicationName),
     applicationName,
   );
+  const signedInCta =
+    appUser?.role === 'admin'
+      ? { to: '/admin', label: 'Open admin dashboard' }
+      : appUser
+        ? { to: '/app', label: 'Open my account' }
+        : { to: '/login', label: home.footerLogin };
 
   const nav = [
     { href: '#home', label: home.navHome },
@@ -69,8 +77,8 @@ export function LandingPage() {
                 {item.label}
               </a>
             ))}
-            <Link className="landing-nav-login" to="/login">
-              {home.footerLogin}
+            <Link className="landing-nav-login" to={signedInCta.to}>
+              {signedInCta.label}
             </Link>
           </nav>
         </header>
@@ -89,14 +97,14 @@ export function LandingPage() {
           )}
           <p className="landing-hero-kicker">{home.heroHeadline}</p>
           <p className="landing-support">{home.heroSupport}</p>
-          <Link className="landing-login-btn" to="/login" aria-label="Customer account login">
+          <Link className="landing-login-btn" to={signedInCta.to} aria-label={signedInCta.label}>
             <span className="landing-login-icon" aria-hidden>
               <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="8" r="3.2" />
                 <path d="M5.5 19.2c1.6-3.2 4-4.8 6.5-4.8s4.9 1.6 6.5 4.8" strokeLinecap="round" />
               </svg>
             </span>
-            <span className="landing-login-label">{home.footerLogin}</span>
+            <span className="landing-login-label">{signedInCta.label}</span>
           </Link>
         </div>
       </div>
@@ -115,8 +123,8 @@ export function LandingPage() {
             <p>
               Build credit, earn rewards, and plan what&apos;s next with guidance from {applicationName}.
             </p>
-            <Link className="btn btn-primary" to="/login">
-              Open online banking
+            <Link className="btn btn-primary" to={signedInCta.to}>
+              {appUser ? signedInCta.label : 'Open online banking'}
             </Link>
           </div>
         </div>
@@ -224,8 +232,8 @@ export function LandingPage() {
           <div className="landing-panel">
             <h3>{home.footerNewAccounts}</h3>
             <p>Sign in to manage accounts, transfers, and statements.</p>
-            <Link className="btn btn-primary" to="/login">
-              {home.footerLogin}
+            <Link className="btn btn-primary" to={signedInCta.to}>
+              {signedInCta.label}
             </Link>
           </div>
         </div>
@@ -248,8 +256,8 @@ export function LandingPage() {
             <h3>Quick links</h3>
             <a href="#why">{home.footerPolicy}</a>
             <a href="#contact">{home.footerTerms}</a>
-            <Link to="/login">{home.footerLogin}</Link>
-            <Link to="/login">{home.footerNewAccounts}</Link>
+            <Link to={signedInCta.to}>{signedInCta.label}</Link>
+            {!appUser ? <Link to="/login">{home.footerNewAccounts}</Link> : null}
           </div>
           <div>
             <h3>{home.headOfficeTitle}</h3>
@@ -264,7 +272,7 @@ export function LandingPage() {
           <span>
             {home.copyrightNote} · {applicationName}
           </span>
-          <Link to="/login">Customer login</Link>
+          <Link to={signedInCta.to}>{appUser ? signedInCta.label : 'Customer login'}</Link>
         </div>
       </footer>
     </div>

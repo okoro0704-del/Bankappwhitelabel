@@ -520,13 +520,13 @@ export function AdminSettingsPage() {
         </Button>
       </div>
       <div className="card card-pad stack">
-        <h2 style={{ fontSize: '1.1rem' }}>Home deliverables</h2>
+        <h2 style={{ fontSize: '1.1rem' }}>Home page</h2>
         <p className="muted">
-          Edit the public Home page (hero, banking, vision, contact, hours) shown before customers
-          sign in.
+          Edit the public bank Home page (hero, banking, vision, contact, hours) shown at your bank
+          website address before and after login.
         </p>
         <Link className="btn btn-secondary" to="/admin/home">
-          Open Home deliverables
+          Open Home page editor
         </Link>
       </div>
       <div className="card card-pad stack">
