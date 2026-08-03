@@ -289,6 +289,7 @@ describe('admin phase 3 screens', () => {
         password: 'newperson',
       }),
     );
+  });
 
   it('lists accounts, transactions, transfers, and settings', async () => {
     const { unmount: unmountAccounts } = wrap(<AdminAccountsPage />);
