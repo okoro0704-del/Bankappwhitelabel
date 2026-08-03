@@ -5,7 +5,7 @@ import { Alert, ErrorState, Skeleton } from '../../components/ui/Feedback';
 import { StatusBadge } from '../../components/ui/StatusBadges';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import {
-  accountTypeLabel,
+  customerAccountTypeLabel,
   formatAccountNumber,
   formatDate,
   formatMoney,
@@ -72,7 +72,7 @@ export function AccountPage() {
             </div>
             <div>
               <dt>Account type</dt>
-              <dd>{accountTypeLabel(data.accountType)}</dd>
+              <dd>{customerAccountTypeLabel(data.accountType)}</dd>
             </div>
             <div>
               <dt>Status</dt>
@@ -119,8 +119,8 @@ export function AccountPage() {
       </div>
 
       <Alert tone="info">
-        Account type labels are display-only. Transfer behavior is enforced by the backend when you
-        submit a transfer.
+        Your account is shown as a current account. Transfer rules are applied securely in the
+        background when you send money.
       </Alert>
     </div>
   );

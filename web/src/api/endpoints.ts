@@ -270,7 +270,7 @@ export const api = {
       const temporaryPassword =
         (data.temporaryPassword as string | null | undefined) ??
         (profileData.handoffTempPassword as string | null | undefined) ??
-        null;
+        String(profileData.username ?? body.username);
       return {
         profile: {
           id: String(profileData.id),
@@ -316,6 +316,88 @@ export const api = {
     await rpcJson('admin_clear_user_temp_password', { p_profile_id: profileId });
   },
 
+  adminResetPasswordToUsername: async (
+    profileId: string,
+  ): Promise<{ username: string; temporaryPassword: string; message: string }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_reset_password_to_username', {
+        p_profile_id: profileId,
+      });
+      return {
+        username: String(data.username ?? ''),
+        temporaryPassword: String(data.temporaryPassword ?? data.username ?? ''),
+        message: String(data.message ?? 'Login password set to the username'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Password reset RPC is missing. Run supabase/migrations/20260803120000_fix_admin_suspend_delete_password.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  adminDeleteUser: async (profileId: string): Promise<void> => {
+    try {
+      await rpcJson('admin_delete_tenant_user', { p_profile_id: profileId });
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Delete-user RPC is missing. Run supabase/migrations/20260803120000_fix_admin_suspend_delete_password.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  adminUpdateTransactionCreatedAt: async (
+    transactionId: string,
+    createdAt: string,
+  ): Promise<Transaction> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_update_transaction_created_at', {
+        p_transaction_id: transactionId,
+        p_created_at: createdAt,
+      });
+      return {
+        id: String(data.id),
+        accountId: String(data.accountId),
+        walletId: String(data.walletId),
+        type: String(data.type),
+        status: String(data.status),
+        amount: Number(data.amount ?? 0),
+        balanceBefore: Number(data.balanceBefore ?? 0),
+        balanceAfter: Number(data.balanceAfter ?? 0),
+        reference: String(data.reference ?? ''),
+        description: (data.description as string | null) ?? null,
+        createdAt: String(data.createdAt),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Deposit-date RPC is missing. Run supabase/migrations/20260803100000_admin_delete_user_edit_deposit_date.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
   adminUpdateStatus: async (profileId: string, status: 'active' | 'suspended'): Promise<Profile> => {
     try {
       const data = await rpcJson<Record<string, unknown>>('admin_set_profile_status', {
@@ -332,6 +414,7 @@ export const api = {
         username: String(data.username),
         status: data.status as Profile['status'],
         role: data.role as Profile['role'],
+        handoffTempPassword: (data.handoffTempPassword as string | null) ?? null,
         createdAt: String(data.createdAt),
         updatedAt: String(data.updatedAt),
       };
@@ -342,7 +425,7 @@ export const api = {
       if (missingFn) {
         throw new ApiError(
           'VALIDATION_ERROR',
-          'Status RPC is missing. Run supabase/migrations/20260803080000_admin_fund_wallet_rpc.sql in the Supabase SQL Editor.',
+          'Status RPC is missing. Run supabase/migrations/20260803120000_fix_admin_suspend_delete_password.sql in the Supabase SQL Editor.',
           400,
         );
       }
@@ -549,18 +632,20 @@ export const api = {
 
   masterProvisionTenantAdmin: async (
     tenantId: string,
-    body: { username: string; password: string; email?: string | null },
+    body: { username: string; password?: string | null; email?: string | null },
   ): Promise<{ ownerUserId: string; username: string; email: string; message: string }> => {
     try {
+      const username = body.username.trim().toLowerCase();
+      const password = body.password?.trim() ? body.password.trim() : username;
       const data = await rpcJson<Record<string, unknown>>('master_provision_tenant_admin', {
         p_tenant_id: tenantId,
-        p_username: body.username,
-        p_password: body.password,
+        p_username: username,
+        p_password: password,
         p_email: body.email?.trim() ? body.email.trim() : null,
       });
       return {
         ownerUserId: String(data.ownerUserId ?? ''),
-        username: String(data.username ?? body.username),
+        username: String(data.username ?? username),
         email: String(data.email ?? body.email ?? ''),
         message: String(data.message ?? 'Admin login enabled.'),
       };

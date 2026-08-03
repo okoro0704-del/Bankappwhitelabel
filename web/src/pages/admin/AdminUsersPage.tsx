@@ -134,12 +134,14 @@ export function AdminUsersPage() {
                       <td>{formatMoney(row.account.balance, row.account.currency)}</td>
                       <td>{formatDate(row.profile.createdAt)}</td>
                       <td>
-                        <Link
-                          className="btn btn-secondary btn-sm"
-                          to={`/admin/users/${row.profile.userId}`}
-                        >
-                          Details
-                        </Link>
+                        <div className="row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
+                          <Link
+                            className="btn btn-secondary btn-sm"
+                            to={`/admin/users/${row.profile.userId}`}
+                          >
+                            Open
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -163,8 +165,8 @@ export function AdminUsersPage() {
                     <span>{formatMoney(row.account.balance, row.account.currency)}</span>
                     <span>{formatDate(row.profile.createdAt)}</span>
                   </div>
-                  <Link className="btn btn-secondary btn-sm" to={`/admin/users/${row.profile.userId}`}>
-                    Details
+                  <Link className="btn btn-primary btn-sm" to={`/admin/users/${row.profile.userId}`}>
+                    Open user — suspend, reset password, delete
                   </Link>
                 </div>
               ))}

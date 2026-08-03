@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api/endpoints';
 import { getFriendlyErrorMessage } from '../../api/errors';
 import { Alert, EmptyState, ErrorState, Skeleton } from '../../components/ui/Feedback';
@@ -20,6 +20,7 @@ import type { Transaction } from '../../types/api';
 
 export function AdminUserDetailPage() {
   const { userId = '' } = useParams();
+  const navigate = useNavigate();
   const { pushToast } = useToast();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const detail = useAsyncData(() => api.adminGetUser(userId), [userId]);
@@ -35,8 +36,24 @@ export function AdminUserDetailPage() {
     const next = detail.data.account.accountStatus === 'active' ? 'suspended' : 'active';
     try {
       await api.adminUpdateStatus(detail.data.profile.id, next);
-      pushToast(`Account marked ${next}`, 'success');
+      pushToast(next === 'suspended' ? 'Account suspended' : 'Account activated', 'success');
       await detail.reload();
+    } catch (err) {
+      pushToast(getFriendlyErrorMessage(err), 'error');
+    }
+  }
+
+  async function deleteUser() {
+    if (!detail.data) return;
+    const name = fullName(detail.data.profile.firstName, detail.data.profile.lastName);
+    const ok = window.confirm(
+      `Delete ${name}? This permanently removes their login, profile, account, and wallet.`,
+    );
+    if (!ok) return;
+    try {
+      await api.adminDeleteUser(detail.data.profile.id);
+      pushToast('User deleted', 'success');
+      navigate('/admin/users');
     } catch (err) {
       pushToast(getFriendlyErrorMessage(err), 'error');
     }
@@ -61,7 +78,8 @@ export function AdminUserDetailPage() {
   }
 
   const { profile, account } = detail.data;
-  const tempPassword = profile.handoffTempPassword ?? null;
+  const passwordWasSet = Boolean(profile.handoffTempPassword?.trim());
+  const tempPassword = profile.handoffTempPassword?.trim() || profile.username;
   const loginUrl = `${window.location.origin}/login`;
 
   async function copyText(value: string) {
@@ -79,6 +97,16 @@ export function AdminUserDetailPage() {
     }
   }
 
+  async function resetPasswordToUsername() {
+    try {
+      const result = await api.adminResetPasswordToUsername(profile.id);
+      pushToast(result.message ?? 'Login password set to username', 'success');
+      await detail.reload();
+    } catch (err) {
+      pushToast(getFriendlyErrorMessage(err), 'error');
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -86,20 +114,43 @@ export function AdminUserDetailPage() {
           <h1>{fullName(profile.firstName, profile.lastName)}</h1>
           <p className="page-subtitle">{profile.email}</p>
         </div>
-        <div className="row">
+        <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <Link className="btn btn-secondary" to="/admin/users">
             Back
-          </Link>
-          <Link className="btn btn-secondary" to="/admin/transactions">
-            Transactions
-          </Link>
-          <Link className="btn btn-secondary" to="/admin/transfers">
-            Transfers
           </Link>
           <Link className="btn btn-primary" to={`/admin/funding?accountId=${account.id}`}>
             Fund wallet
           </Link>
+          <Button type="button" variant="secondary" onClick={() => void toggleStatus()}>
+            {account.accountStatus === 'active' ? 'Suspend' : 'Activate'}
+          </Button>
+          <Button type="button" variant="danger" onClick={() => void deleteUser()}>
+            Delete user
+          </Button>
         </div>
+      </div>
+
+      <div className="card card-pad stack" style={{ marginBottom: '1.25rem' }}>
+        <h2 style={{ fontSize: '1.1rem' }}>User actions</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Suspend, reset the login password to the username, or permanently delete this account
+          holder.
+        </p>
+        <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+          <Button type="button" variant="secondary" onClick={() => void toggleStatus()}>
+            {account.accountStatus === 'active' ? 'Suspend account' : 'Activate account'}
+          </Button>
+          <Button type="button" variant="primary" onClick={() => void resetPasswordToUsername()}>
+            Set login password to username
+          </Button>
+          <Button type="button" variant="danger" onClick={() => void deleteUser()}>
+            Delete user
+          </Button>
+        </div>
+        <Alert tone="info">
+          After resetting, the customer signs in at <code>/login</code> with username{' '}
+          <strong>{profile.username}</strong> and password <strong>{profile.username}</strong>.
+        </Alert>
       </div>
 
       <div className="card card-pad stack" style={{ marginBottom: '1.25rem' }}>
@@ -129,18 +180,22 @@ export function AdminUserDetailPage() {
           </div>
           <div>
             <dt>Temporary password</dt>
-            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-              <span className="mono-break">{tempPassword ?? 'Not stored — set at creation or reset Auth password'}</span>
-              {tempPassword ? (
-                <>
-                  <Button type="button" variant="secondary" onClick={() => void copyText(tempPassword)}>
-                    Copy
-                  </Button>
+            <dd className="stack" style={{ gap: '0.5rem' }}>
+              <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">{tempPassword}</span>
+                <Button type="button" variant="secondary" onClick={() => void copyText(tempPassword)}>
+                  Copy
+                </Button>
+                {passwordWasSet ? (
                   <Button type="button" variant="ghost" onClick={() => void clearTempPassword()}>
                     Clear from deliverables
                   </Button>
-                </>
-              ) : null}
+                ) : null}
+              </div>
+              <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+                Defaults to the username when no separate password was stored. Use{' '}
+                <strong>Set login password to username</strong> above so Auth accepts it.
+              </p>
             </dd>
           </div>
         </dl>
@@ -206,9 +261,12 @@ export function AdminUserDetailPage() {
               </dd>
             </div>
           </dl>
-          <div style={{ marginTop: '1.25rem' }}>
+          <div className="row" style={{ marginTop: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <Button variant="secondary" onClick={() => void toggleStatus()}>
               {account.accountStatus === 'active' ? 'Suspend account' : 'Activate account'}
+            </Button>
+            <Button variant="danger" onClick={() => void deleteUser()}>
+              Delete user
             </Button>
           </div>
         </div>
@@ -275,6 +333,11 @@ export function AdminUserDetailPage() {
         transactionId={selectedTx?.id ?? null}
         currency={account.currency}
         initial={selectedTx}
+        allowEditDepositDate
+        onUpdated={() => {
+          setSelectedTx(null);
+          void ledger.reload();
+        }}
         onClose={() => setSelectedTx(null)}
       />
     </div>

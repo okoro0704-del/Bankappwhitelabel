@@ -1,9 +1,73 @@
--- Fix ambiguous email/username column vs variable in master_provision_tenant_admin.
+-- When no temporary password is set, the username is the password.
+-- Admins can also reset Auth login to match the username.
 
+create or replace function public.admin_reset_password_to_username(p_profile_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+declare
+  actor public.profiles%rowtype;
+  target public.profiles%rowtype;
+  hashed text;
+begin
+  if auth.uid() is null then
+    raise exception 'UNAUTHENTICATED' using errcode = 'P0001';
+  end if;
+  if not public.is_admin(auth.uid()) then
+    raise exception 'FORBIDDEN' using errcode = 'P0001';
+  end if;
+
+  select * into actor from public.profiles where user_id = auth.uid();
+  if not found or actor.status <> 'active' then
+    raise exception 'FORBIDDEN' using errcode = 'P0001';
+  end if;
+
+  select * into target from public.profiles where id = p_profile_id;
+  if not found or target.tenant_id is distinct from actor.tenant_id then
+    raise exception 'NOT_FOUND' using errcode = 'P0001';
+  end if;
+
+  if target.role = 'admin' then
+    raise exception 'VALIDATION_ERROR: Use master console to reset tenant admin passwords'
+      using errcode = 'P0001';
+  end if;
+
+  if target.username is null or length(trim(target.username)) < 3 then
+    raise exception 'VALIDATION_ERROR: Username is missing or too short to use as a password'
+      using errcode = 'P0001';
+  end if;
+
+  hashed := extensions.crypt(target.username, extensions.gen_salt('bf'));
+
+  update auth.users
+  set encrypted_password = hashed, updated_at = now()
+  where id = target.user_id;
+
+  update public.profiles
+  set handoff_temp_password = target.username, updated_at = now()
+  where id = target.id
+  returning * into target;
+
+  return jsonb_build_object(
+    'id', target.id,
+    'username', target.username,
+    'temporaryPassword', target.username,
+    'handoffTempPassword', target.handoff_temp_password,
+    'message', 'Login password set to the username'
+  );
+end;
+$$;
+
+revoke all on function public.admin_reset_password_to_username(uuid) from public;
+grant execute on function public.admin_reset_password_to_username(uuid) to authenticated;
+
+-- Master: empty password → use username (same body as 20260803050000 with that default).
 create or replace function public.master_provision_tenant_admin(
   p_tenant_id uuid,
   p_username text,
-  p_password text,
+  p_password text default null,
   p_email text default null
 )
 returns jsonb
@@ -18,7 +82,6 @@ declare
   v_email text := lower(trim(coalesce(p_email, '')));
   owner_id uuid;
   profile_id uuid;
-  account_id uuid;
   existing_profile public.profiles%rowtype;
   clash_id uuid;
   hashed text;
@@ -38,8 +101,12 @@ begin
       using errcode = 'P0001';
   end if;
 
-  if char_length(v_password) < 8 then
-    raise exception 'VALIDATION_ERROR: Temporary password must be at least 8 characters'
+  if nullif(trim(v_password), '') is null then
+    v_password := v_username;
+  end if;
+
+  if char_length(v_password) < 3 then
+    raise exception 'VALIDATION_ERROR: Temporary password must be at least 3 characters'
       using errcode = 'P0001';
   end if;
 
@@ -221,21 +288,6 @@ begin
       owner_id, p_tenant_id, 'Tenant', 'Admin', v_email, v_username, 'active', 'admin'
     )
     returning id into profile_id;
-
-    insert into public.accounts (
-      profile_id, tenant_id, account_number, account_type, account_status, one_time_transfer_used
-    ) values (
-      profile_id,
-      p_tenant_id,
-      lpad((floor(random() * 9000000000) + 1000000000)::bigint::text, 10, '0'),
-      'escrow',
-      'active',
-      false
-    )
-    returning id into account_id;
-
-    insert into public.wallets (account_id, tenant_id, balance, currency)
-    values (account_id, p_tenant_id, 0, 'USD');
   end if;
 
   update public.tenants set

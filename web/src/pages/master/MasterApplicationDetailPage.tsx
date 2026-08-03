@@ -248,10 +248,11 @@ export function MasterApplicationDetailPage() {
   async function enableAdminLogin() {
     if (!tenant) return;
     const username = (adminUsernameDraft ?? tenant.handoffAdminUsername ?? '').trim().toLowerCase();
-    const password = (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim();
+    const password =
+      (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim() || username;
     const email = adminEmailDraft.trim().toLowerCase() || undefined;
-    if (!username || !password) {
-      setActionError('Enter both an admin username and temporary password, then enable login.');
+    if (!username) {
+      setActionError('Enter an admin username, then enable login. Password defaults to the username.');
       return;
     }
     setProvisioningAdmin(true);
@@ -649,11 +650,17 @@ export function MasterApplicationDetailPage() {
             value={
               tempPasswordDraft ??
               tenant.handoffTempPassword ??
-              'Not set — generate or enter one below'
+              tenant.handoffAdminUsername ??
+              'Defaults to username when not set'
             }
             onCopy={
-              (tempPasswordDraft ?? tenant.handoffTempPassword)
-                ? () => copyText((tempPasswordDraft ?? tenant.handoffTempPassword)!)
+              (tempPasswordDraft ?? tenant.handoffTempPassword ?? tenant.handoffAdminUsername)
+                ? () =>
+                    copyText(
+                      (tempPasswordDraft ??
+                        tenant.handoffTempPassword ??
+                        tenant.handoffAdminUsername)!,
+                    )
                 : undefined
             }
           />
@@ -760,14 +767,14 @@ export function MasterApplicationDetailPage() {
           <Field
             label="Set temporary password"
             htmlFor="handoff-temp-password"
-            hint="Shown in deliverables. Must be applied with Enable admin login to work at sign-in."
+            hint="Optional — leave blank to use the username as the password."
           >
             <Input
               id="handoff-temp-password"
               value={tempPasswordDraft ?? tenant.handoffTempPassword ?? ''}
               onChange={(e) => setTempPasswordDraft(e.target.value)}
               autoComplete="off"
-              placeholder="Generate or type a temporary password"
+              placeholder="Leave blank to use username"
             />
           </Field>
           <div className="row" style={{ flexWrap: 'wrap' }}>
@@ -808,8 +815,7 @@ export function MasterApplicationDetailPage() {
               disabled={
                 busy ||
                 provisioningAdmin ||
-                !(adminUsernameDraft ?? tenant.handoffAdminUsername)?.trim() ||
-                !(tempPasswordDraft ?? tenant.handoffTempPassword)?.trim()
+                !(adminUsernameDraft ?? tenant.handoffAdminUsername)?.trim()
               }
               onClick={() => void enableAdminLogin()}
             >

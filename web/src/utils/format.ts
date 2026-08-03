@@ -43,6 +43,7 @@ export function truncateMiddle(value: string, head = 10, tail = 6): string {
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
+/** Backend/admin labels for account processing modes. */
 export function accountTypeLabel(type: AccountType | string): string {
   switch (type) {
     case 'escrow':
@@ -54,6 +55,13 @@ export function accountTypeLabel(type: AccountType | string): string {
     default:
       return type;
   }
+}
+
+/**
+ * Customer-facing account type. Backend modes stay hidden from account holders.
+ */
+export function customerAccountTypeLabel(_type?: AccountType | string): string {
+  return 'Current account';
 }
 
 export function statusLabel(status: string): string {

@@ -140,6 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       const identifier = usernameOrEmail.trim();
       let email = identifier;
+      const passwordCandidates = Array.from(
+        new Set([password, password.trim(), password.trim().toLowerCase()].filter(Boolean)),
+      );
 
       if (!identifier.includes('@')) {
         const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
@@ -156,12 +159,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email = resolved;
       }
 
-      const { data, error: authError } = await getSupabase().auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+      let sessionData: Awaited<
+        ReturnType<ReturnType<typeof getSupabase>['auth']['signInWithPassword']>
+      >['data'] | null = null;
+      let authError: { message?: string } | null = null;
 
-      if (authError || !data.session) {
+      for (const candidate of passwordCandidates) {
+        const result = await getSupabase().auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password: candidate,
+        });
+        if (!result.error && result.data.session) {
+          sessionData = result.data;
+          authError = null;
+          break;
+        }
+        authError = result.error;
+      }
+
+      if (authError || !sessionData?.session) {
         const message = (authError?.message ?? '').toLowerCase().includes('invalid')
           ? 'Invalid username or password.'
           : (authError?.message ?? 'Unable to sign in.');
@@ -169,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new ApiError('INVALID_CREDENTIALS', message, 401);
       }
 
-      setSession(data.session);
+      setSession(sessionData.session);
       setLoading(false);
 
       try {

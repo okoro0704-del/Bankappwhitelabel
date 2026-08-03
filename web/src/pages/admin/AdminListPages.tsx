@@ -303,6 +303,8 @@ export function AdminTransactionsPage() {
       <TransactionDetailModal
         transactionId={selectedId}
         initial={selectedInitial}
+        allowEditDepositDate
+        onUpdated={() => void query.reload()}
         onClose={() => {
           setSelectedId(null);
           setSelectedInitial(null);
