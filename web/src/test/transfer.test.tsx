@@ -124,7 +124,7 @@ describe('transfer workflow', () => {
     vi.mocked(api.getVerification).mockReset();
     vi.mocked(api.submitVerification).mockReset();
     vi.mocked(api.getTransfers).mockReset();
-    vi.mocked(api.getTransfers).mockResolvedValue({ items: [], total: 0, limit: 0, limit: 0 });
+    vi.mocked(api.getTransfers).mockResolvedValue({ items: [], total: 0, limit: 0, offset: 0 });
   });
 
   afterEach(() => {
