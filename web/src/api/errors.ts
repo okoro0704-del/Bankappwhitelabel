@@ -12,6 +12,7 @@ export class ApiError extends Error {
 
 const FRIENDLY: Record<string, string> = {
   UNAUTHENTICATED: 'Your session has expired. Please sign in again.',
+  INVALID_CREDENTIALS: 'Invalid username or password.',
   FORBIDDEN: 'You do not have permission to perform this action.',
   ACCOUNT_NOT_FOUND: 'Account could not be found.',
   ACCOUNT_INACTIVE: 'This account is inactive. Contact support if you need help.',
@@ -62,6 +63,7 @@ export function getFriendlyErrorMessage(error: unknown): string {
         'VALIDATION_ERROR',
         'FORBIDDEN',
         'NOT_FOUND',
+        'INVALID_CREDENTIALS',
       ].includes(error.code)
     ) {
       return error.message;

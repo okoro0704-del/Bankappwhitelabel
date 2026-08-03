@@ -73,6 +73,9 @@ describe('API error handling', () => {
     );
     expect(getFriendlyErrorMessage(new ApiError('ACCOUNT_INACTIVE', 'x'))).toContain('inactive');
     expect(getFriendlyErrorMessage(new ApiError('UNAUTHENTICATED', 'x'))).toContain('session');
+    expect(getFriendlyErrorMessage(new ApiError('INVALID_CREDENTIALS', 'Bad login'))).toBe(
+      'Bad login',
+    );
     expect(getFriendlyErrorMessage(new ApiError('API_UNREACHABLE', 'x'))).toContain('Supabase');
   });
 });

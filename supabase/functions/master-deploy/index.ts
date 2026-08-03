@@ -262,12 +262,218 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === 'provisionTenantAdmin') {
+      const username = String(body.username ?? '')
+        .trim()
+        .toLowerCase();
+      const password = String(body.password ?? '');
+      const emailInput = String(body.email ?? '')
+        .trim()
+        .toLowerCase();
+
+      if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+        return errorResponse(
+          'VALIDATION_ERROR',
+          'Admin username must be 3–30 characters: lowercase letters, numbers, underscore.',
+          400,
+        );
+      }
+      if (password.length < 8) {
+        return errorResponse('VALIDATION_ERROR', 'Temporary password must be at least 8 characters.', 400);
+      }
+
+      const { tenant } = await loadTenantBundle(admin, tenantId);
+      let ownerId = (tenant.owner_user_id as string | null) ?? null;
+      let email = emailInput;
+
+      if (ownerId) {
+        const { data: ownerProfile } = await admin
+          .from('profiles')
+          .select('id, email, username, role, tenant_id')
+          .eq('user_id', ownerId)
+          .maybeSingle();
+        if (!email) {
+          email = String(ownerProfile?.email ?? '').trim().toLowerCase();
+        }
+        if (!email) {
+          const { data: authUser } = await admin.auth.admin.getUserById(ownerId);
+          email = String(authUser.user?.email ?? '')
+            .trim()
+            .toLowerCase();
+        }
+        if (!email) {
+          return errorResponse(
+            'VALIDATION_ERROR',
+            'Owner has no email. Provide an admin email to enable login.',
+            400,
+          );
+        }
+
+        const { error: pwdError } = await admin.auth.admin.updateUserById(ownerId, {
+          password,
+          email,
+          email_confirm: true,
+        });
+        if (pwdError) {
+          return errorResponse('VALIDATION_ERROR', pwdError.message, 400);
+        }
+
+        if (ownerProfile) {
+          const { data: clash } = await admin
+            .from('profiles')
+            .select('id')
+            .eq('username', username)
+            .neq('id', ownerProfile.id)
+            .maybeSingle();
+          if (clash) {
+            return errorResponse('VALIDATION_ERROR', 'That username is already taken.', 400);
+          }
+          const { error: profileError } = await admin
+            .from('profiles')
+            .update({
+              username,
+              email,
+              role: 'admin',
+              tenant_id: tenantId,
+              status: 'active',
+            })
+            .eq('id', ownerProfile.id);
+          if (profileError) {
+            return errorResponse('INTERNAL_ERROR', profileError.message, 500);
+          }
+        } else {
+          await ensureAdminProfile(admin, {
+            userId: ownerId,
+            tenantId,
+            email,
+            username,
+          });
+        }
+      } else {
+        if (!email || !email.includes('@')) {
+          return errorResponse(
+            'VALIDATION_ERROR',
+            'Admin email is required when the tenant has no owner yet.',
+            400,
+          );
+        }
+
+        const { data: clash } = await admin
+          .from('profiles')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle();
+        if (clash) {
+          return errorResponse('VALIDATION_ERROR', 'That username is already taken.', 400);
+        }
+
+        const { data: created, error: createError } = await admin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+        });
+        if (createError || !created.user) {
+          return errorResponse(
+            'VALIDATION_ERROR',
+            createError?.message ?? 'Failed to create admin auth user',
+            400,
+          );
+        }
+        ownerId = created.user.id;
+        try {
+          await ensureAdminProfile(admin, {
+            userId: ownerId,
+            tenantId,
+            email,
+            username,
+          });
+        } catch (profileErr) {
+          await admin.auth.admin.deleteUser(ownerId);
+          const msg = profileErr instanceof Error ? profileErr.message : 'Failed to create admin profile';
+          return errorResponse('INTERNAL_ERROR', msg, 500);
+        }
+
+        const { error: ownerError } = await admin
+          .from('tenants')
+          .update({ owner_user_id: ownerId, updated_at: new Date().toISOString() })
+          .eq('id', tenantId);
+        if (ownerError) {
+          return errorResponse('INTERNAL_ERROR', ownerError.message, 500);
+        }
+      }
+
+      const { error: handoffError } = await admin
+        .from('tenants')
+        .update({
+          handoff_admin_username: username,
+          handoff_temp_password: password,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tenantId);
+      if (handoffError) {
+        return errorResponse('INTERNAL_ERROR', handoffError.message, 500);
+      }
+
+      return jsonResponse({
+        data: {
+          ownerUserId: ownerId,
+          username,
+          email,
+          message: 'Admin login enabled. Username and password can be used at /admin/login.',
+        },
+      });
+    }
+
     return errorResponse('VALIDATION_ERROR', 'Unknown action', 400);
   } catch (error) {
     const err = error as { code?: string; status?: number; message?: string };
     return errorResponse(err.code ?? 'INTERNAL_ERROR', err.message ?? 'Request failed', err.status ?? 500);
   }
 });
+
+async function ensureAdminProfile(
+  admin: ReturnType<typeof adminClient>,
+  args: { userId: string; tenantId: string; email: string; username: string },
+) {
+  const accountNumber = String(Math.floor(1_000_000_000 + Math.random() * 9_000_000_000));
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .insert({
+      user_id: args.userId,
+      tenant_id: args.tenantId,
+      first_name: 'Tenant',
+      last_name: 'Admin',
+      email: args.email,
+      username: args.username,
+      status: 'active',
+      role: 'admin',
+    })
+    .select('*')
+    .single();
+  if (profileError) throw profileError;
+
+  const { data: account, error: accountError } = await admin
+    .from('accounts')
+    .insert({
+      profile_id: profile.id,
+      tenant_id: args.tenantId,
+      account_number: accountNumber,
+      account_type: 'escrow',
+      account_status: 'active',
+      one_time_transfer_used: false,
+    })
+    .select('*')
+    .single();
+  if (accountError) throw accountError;
+
+  const { error: walletError } = await admin.from('wallets').insert({
+    account_id: account.id,
+    tenant_id: args.tenantId,
+    balance: 0,
+    currency: 'USD',
+  });
+  if (walletError) throw walletError;
+}
 
 function buildActionMessage(
   action: string,

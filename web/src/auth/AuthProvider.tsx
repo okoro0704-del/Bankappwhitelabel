@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!resolved || typeof resolved !== 'string') {
         const message = 'Invalid username or password.';
         setError(message);
-        throw new ApiError('UNAUTHENTICATED', message, 401);
+        throw new ApiError('INVALID_CREDENTIALS', message, 401);
       }
       email = resolved;
     }
@@ -130,13 +130,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? 'Invalid username or password.'
         : authError.message;
       setError(message);
-      throw new ApiError('UNAUTHENTICATED', message, 401);
+      throw new ApiError('INVALID_CREDENTIALS', message, 401);
     }
 
     await hydrate(data.session);
-    const user = await loadAppUser();
-    setAppUser(user);
-    return user;
+    try {
+      const user = await loadAppUser();
+      setAppUser(user);
+      return user;
+    } catch (err) {
+      await getSupabase().auth.signOut();
+      setSession(null);
+      setAppUser(null);
+      if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') {
+        const message =
+          'Sign-in succeeded but no bank profile is linked. In Web Finance, use “Enable admin login” on the application.';
+        setError(message);
+        throw new ApiError('INVALID_CREDENTIALS', message, 401);
+      }
+      throw err;
+    }
   }, [hydrate]);
 
   const signOut = useCallback(async () => {

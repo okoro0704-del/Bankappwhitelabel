@@ -412,6 +412,19 @@ export const api = {
     return mapMasterDetailRpc(data, baseDomain(), dnsTarget());
   },
 
+  masterProvisionTenantAdmin: async (
+    tenantId: string,
+    body: { username: string; password: string; email?: string | null },
+  ): Promise<{ ownerUserId: string; username: string; email: string; message: string }> => {
+    return invokeFunction('master-deploy', {
+      action: 'provisionTenantAdmin',
+      tenantId,
+      username: body.username,
+      password: body.password,
+      email: body.email ?? null,
+    });
+  },
+
   masterActivateTenant: async (tenantId: string): Promise<MasterTenantDetail> => {
     const data = await rpcJson<Record<string, unknown>>('master_set_tenant_status', {
       p_tenant_id: tenantId,

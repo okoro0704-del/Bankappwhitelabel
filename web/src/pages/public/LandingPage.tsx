@@ -8,6 +8,8 @@ export function LandingPage() {
   const headline = branding?.loginHeadline ?? applicationName;
   const subtitle =
     branding?.loginSubtitle ?? 'Secure access to your accounts, transfers, and statements.';
+  const supportEmail = branding?.supportEmail;
+  const supportPhone = branding?.supportPhone;
 
   return (
     <div className="landing">
@@ -43,6 +45,90 @@ export function LandingPage() {
           <p className="landing-hint">{headline}</p>
         </div>
       </div>
+
+      <section className="landing-section" aria-labelledby="landing-offerings-title">
+        <div className="landing-section-inner">
+          <h2 id="landing-offerings-title">What we offer</h2>
+          <p className="landing-section-lead">
+            Everyday banking tools designed for clear balances, controlled transfers, and reliable
+            account access.
+          </p>
+          <ul className="landing-offer-list">
+            <li>
+              <strong>Account overview</strong>
+              <span>View balances, statements, and recent activity in one place.</span>
+            </li>
+            <li>
+              <strong>Secure transfers</strong>
+              <span>Send funds with verification steps matched to your account type.</span>
+            </li>
+            <li>
+              <strong>Personal support</strong>
+              <span>Reach your bank team for account questions and transfer assistance.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className="landing-section landing-section-alt" aria-labelledby="landing-hours-title">
+        <div className="landing-section-inner landing-hours-grid">
+          <div>
+            <h2 id="landing-hours-title">Service hours</h2>
+            <p className="landing-section-lead">
+              Online banking is available around the clock. Branch and support desks follow these
+              hours.
+            </p>
+          </div>
+          <dl className="landing-hours">
+            <div>
+              <dt>Online banking</dt>
+              <dd>24 hours · 7 days</dd>
+            </div>
+            <div>
+              <dt>Customer support</dt>
+              <dd>Monday–Friday · 8:00–18:00</dd>
+            </div>
+            <div>
+              <dt>Branch services</dt>
+              <dd>Monday–Friday · 9:00–16:00</dd>
+            </div>
+            <div>
+              <dt>Saturday</dt>
+              <dd>Support desk · 9:00–13:00</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      {(supportEmail || supportPhone) && (
+        <section className="landing-section" aria-labelledby="landing-contact-title">
+          <div className="landing-section-inner">
+            <h2 id="landing-contact-title">Contact</h2>
+            <p className="landing-section-lead">
+              Need help before you sign in? Reach {applicationName} using the details below.
+            </p>
+            <ul className="landing-contact-list">
+              {supportEmail ? (
+                <li>
+                  <strong>Email</strong>
+                  <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
+                </li>
+              ) : null}
+              {supportPhone ? (
+                <li>
+                  <strong>Phone</strong>
+                  <a href={`tel:${supportPhone.replace(/\s+/g, '')}`}>{supportPhone}</a>
+                </li>
+              ) : null}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <footer className="landing-footer">
+        <span>{applicationName}</span>
+        <Link to="/login">Customer login</Link>
+      </footer>
     </div>
   );
 }

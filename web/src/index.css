@@ -1564,7 +1564,7 @@ a.list-row-btn {
 
 .landing-hero {
   position: relative;
-  min-height: 100vh;
+  min-height: 88vh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1658,6 +1658,136 @@ a.list-row-btn {
   margin: 0.25rem 0 0;
   font-size: 0.92rem;
   color: rgba(244, 247, 246, 0.72);
+}
+
+.landing-section {
+  background: var(--nl-paper);
+  color: var(--nl-ink);
+  padding: clamp(2.5rem, 6vw, 4rem) clamp(1.25rem, 4vw, 3rem);
+}
+
+.landing-section-alt {
+  background: linear-gradient(180deg, var(--nl-canvas) 0%, #e8eef1 100%);
+}
+
+.landing-section-inner {
+  max-width: 52rem;
+  margin: 0 auto;
+}
+
+.landing-section h2 {
+  font-family: var(--nl-display);
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.landing-section-lead {
+  margin: 0 0 1.5rem;
+  color: var(--nl-ink-soft);
+  max-width: 36rem;
+  line-height: 1.5;
+}
+
+.landing-offer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.landing-offer-list li {
+  display: grid;
+  gap: 0.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--nl-line);
+}
+
+.landing-offer-list li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.landing-offer-list strong {
+  font-size: 1.05rem;
+}
+
+.landing-offer-list span {
+  color: var(--nl-ink-soft);
+  line-height: 1.45;
+}
+
+.landing-hours-grid {
+  display: grid;
+  gap: 1.75rem;
+}
+
+@media (min-width: 800px) {
+  .landing-hours-grid {
+    grid-template-columns: 1fr 1.1fr;
+    align-items: start;
+    gap: 2.5rem;
+  }
+}
+
+.landing-hours {
+  margin: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.landing-hours > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--nl-line);
+}
+
+.landing-hours dt {
+  font-weight: 650;
+}
+
+.landing-hours dd {
+  margin: 0;
+  color: var(--nl-ink-soft);
+  text-align: right;
+}
+
+.landing-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.landing-contact-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+
+.landing-contact-list a {
+  color: var(--tenant-secondary, var(--nl-accent));
+}
+
+.landing-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem clamp(1.25rem, 4vw, 3rem);
+  background: var(--nl-ink);
+  color: rgba(244, 247, 246, 0.85);
+  font-size: 0.9rem;
+}
+
+.landing-footer a {
+  color: #f4f7f6;
 }
 
 @media (max-width: 720px) {

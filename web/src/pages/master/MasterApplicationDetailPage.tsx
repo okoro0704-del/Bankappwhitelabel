@@ -65,8 +65,10 @@ export function MasterApplicationDetailPage() {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [tempPasswordDraft, setTempPasswordDraft] = useState<string | null>(null);
   const [adminUsernameDraft, setAdminUsernameDraft] = useState<string | null>(null);
+  const [adminEmailDraft, setAdminEmailDraft] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingUsername, setSavingUsername] = useState(false);
+  const [provisioningAdmin, setProvisioningAdmin] = useState(false);
 
   const tenant = detail.data?.tenant;
   const branding = detail.data?.branding;
@@ -230,6 +232,34 @@ export function MasterApplicationDetailPage() {
       setActionError(getFriendlyErrorMessage(err));
     } finally {
       setSavingUsername(false);
+    }
+  }
+
+  async function enableAdminLogin() {
+    if (!tenant) return;
+    const username = (adminUsernameDraft ?? tenant.handoffAdminUsername ?? '').trim().toLowerCase();
+    const password = (tempPasswordDraft ?? tenant.handoffTempPassword ?? '').trim();
+    const email = adminEmailDraft.trim().toLowerCase() || undefined;
+    if (!username || !password) {
+      setActionError('Enter both an admin username and temporary password, then enable login.');
+      return;
+    }
+    setProvisioningAdmin(true);
+    setActionError(null);
+    try {
+      const result = await api.masterProvisionTenantAdmin(tenant.id, {
+        username,
+        password,
+        email,
+      });
+      pushToast(result.message, 'success');
+      setAdminUsernameDraft(null);
+      setTempPasswordDraft(null);
+      await detail.reload();
+    } catch (err) {
+      setActionError(getFriendlyErrorMessage(err));
+    } finally {
+      setProvisioningAdmin(false);
     }
   }
 
@@ -572,7 +602,8 @@ export function MasterApplicationDetailPage() {
         <h2 style={{ fontSize: '1.05rem' }}>Handoff information</h2>
         <p className="muted">
           Deliverables for the application owner. Customer login is for account holders only.
-          Admin credentials are separate. Rotate the temporary password after first login.
+          Use <strong>Enable admin login</strong> to create or update the Auth user so username and
+          password work at /admin/login. Rotate the temporary password after first login.
         </p>
         <div className="handoff-grid">
           <HandoffRow
@@ -660,14 +691,32 @@ export function MasterApplicationDetailPage() {
           <Field
             label="Admin username"
             htmlFor="handoff-admin-username"
-            hint="Username the tenant admin will use at /admin/login"
+            hint="Username the tenant admin will use at /admin/login (lowercase, numbers, underscore)"
           >
             <Input
               id="handoff-admin-username"
               value={adminUsernameDraft ?? tenant.handoffAdminUsername ?? ''}
               onChange={(e) => setAdminUsernameDraft(e.target.value)}
               autoComplete="off"
-              placeholder="e.g. citbank.admin"
+              placeholder="e.g. citbank_admin"
+            />
+          </Field>
+          <Field
+            label="Admin email"
+            htmlFor="handoff-admin-email"
+            hint={
+              deployment.ownerAssigned
+                ? 'Optional — uses the owner email when left blank'
+                : 'Required when no owner is assigned yet'
+            }
+          >
+            <Input
+              id="handoff-admin-email"
+              type="email"
+              value={adminEmailDraft}
+              onChange={(e) => setAdminEmailDraft(e.target.value)}
+              autoComplete="off"
+              placeholder="admin@bank.example"
             />
           </Field>
           <div className="row" style={{ flexWrap: 'wrap' }}>
@@ -684,7 +733,7 @@ export function MasterApplicationDetailPage() {
                 )
               }
             >
-              {savingUsername ? 'Saving…' : 'Save username'}
+              {savingUsername ? 'Saving…' : 'Save username note'}
             </Button>
             {tenant.handoffAdminUsername ? (
               <Button
@@ -701,7 +750,7 @@ export function MasterApplicationDetailPage() {
           <Field
             label="Set temporary password"
             htmlFor="handoff-temp-password"
-            hint="Shown in deliverables for the tenant admin. Not emailed automatically."
+            hint="Shown in deliverables. Must be applied with Enable admin login to work at sign-in."
           >
             <Input
               id="handoff-temp-password"
@@ -729,7 +778,7 @@ export function MasterApplicationDetailPage() {
                 )
               }
             >
-              {savingPassword ? 'Saving…' : 'Save password'}
+              {savingPassword ? 'Saving…' : 'Save password note'}
             </Button>
             {tenant.handoffTempPassword ? (
               <Button
@@ -738,9 +787,24 @@ export function MasterApplicationDetailPage() {
                 disabled={busy || savingPassword}
                 onClick={() => void saveTemporaryPassword(null)}
               >
-                Clear
+                Clear password
               </Button>
             ) : null}
+          </div>
+
+          <div className="row" style={{ flexWrap: 'wrap', marginTop: '0.35rem' }}>
+            <Button
+              type="button"
+              disabled={
+                busy ||
+                provisioningAdmin ||
+                !(adminUsernameDraft ?? tenant.handoffAdminUsername)?.trim() ||
+                !(tempPasswordDraft ?? tenant.handoffTempPassword)?.trim()
+              }
+              onClick={() => void enableAdminLogin()}
+            >
+              {provisioningAdmin ? 'Enabling…' : 'Enable admin login'}
+            </Button>
           </div>
         </div>
       </div>
