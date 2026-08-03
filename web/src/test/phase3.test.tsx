@@ -52,6 +52,8 @@ vi.mock('../api/endpoints', () => ({
     getTransfers: vi.fn(),
     getTransaction: vi.fn(),
     getTransfer: vi.fn(),
+    getTransferPinStatus: vi.fn(),
+    setTransferPin: vi.fn(),
     adminListUsers: vi.fn(),
     adminGetUser: vi.fn(),
     adminCreateUser: vi.fn(),
@@ -120,6 +122,7 @@ describe('user phase 3 screens', () => {
     });
     vi.mocked(api.getAccount).mockResolvedValue(sampleUser.account);
     vi.mocked(api.getProfile).mockResolvedValue(sampleUser.profile);
+    vi.mocked(api.getTransferPinStatus).mockResolvedValue({ configured: false });
     vi.mocked(api.getTransactions).mockResolvedValue({ items: [], limit: 5, offset: 0, total: 0 });
     vi.mocked(api.getTransfers).mockResolvedValue({ items: [], limit: 5, offset: 0, total: 0 });
   });
@@ -160,9 +163,11 @@ describe('user phase 3 screens', () => {
     expect(screen.getByText(/balance after/i)).toBeInTheDocument();
   });
 
-  it('renders read-only profile with sign out', async () => {
+  it('renders profile security controls with sign out', async () => {
+    vi.mocked(api.getTransferPinStatus).mockResolvedValue({ configured: false });
     wrap(<ProfilePage />);
-    expect(await screen.findByText(/read-only/i)).toBeInTheDocument();
+    expect(await screen.findByText(/change password/i)).toBeInTheDocument();
+    expect(screen.getByText(/set transfer pin/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 });

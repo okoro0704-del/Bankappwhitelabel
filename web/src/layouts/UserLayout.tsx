@@ -10,7 +10,7 @@ const USER_NAV = [
   { to: '/app/transfer', label: 'Transfer', icon: '↗', end: false },
   { to: '/app/transactions', label: 'Transactions', icon: '☰', end: false },
   { to: '/app/account', label: 'Account', icon: '▭', end: false },
-  { to: '/app/profile', label: 'Profile', icon: '◎', end: false },
+  { to: '/app/profile', label: 'Security', icon: '◎', end: false },
 ];
 
 export function UserLayout() {

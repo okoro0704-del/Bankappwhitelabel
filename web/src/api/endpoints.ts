@@ -212,7 +212,7 @@ export const api = {
       if (missingFn) {
         throw new ApiError(
           'VALIDATION_ERROR',
-          'Transfer RPC is missing. Run supabase/migrations/20260803130000_transfer_rpcs_and_pin.sql in the Supabase SQL Editor.',
+          'Transfers are not enabled on the database yet. Ask your administrator to run supabase/migrations/20260803130000_transfer_rpcs_and_pin.sql in the Supabase SQL Editor.',
           400,
         );
       }
@@ -246,6 +246,53 @@ export const api = {
       p_transfer_id: id,
     });
     return mapTransferAction(data);
+  },
+
+  getTransferPinStatus: async (): Promise<{ configured: boolean }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('user_transfer_pin_status');
+      return { configured: Boolean(data.configured) };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'PIN setup is unavailable. Run supabase/migrations/20260803150000_user_security_pin.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
+  setTransferPin: async (body: {
+    pin: string;
+    currentPin?: string;
+  }): Promise<{ configured: boolean; message: string }> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('user_set_transfer_pin', {
+        p_pin: body.pin,
+        p_current_pin: body.currentPin?.trim() ? body.currentPin.trim() : null,
+      });
+      return {
+        configured: Boolean(data.configured),
+        message: String(data.message ?? 'Transfer PIN saved'),
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'PIN setup is unavailable. Run supabase/migrations/20260803150000_user_security_pin.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
   },
 
   adminListUsers: async (params?: ListParams): Promise<Paginated<AdminUser>> => {

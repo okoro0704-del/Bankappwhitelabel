@@ -617,7 +617,7 @@ export function TransferPage() {
             <Field
               label="Transfer PIN"
               htmlFor="transfer-pin"
-              hint="Enter your 4–8 digit transfer PIN to authorize this payment."
+              hint="Enter your 4–8 digit transfer PIN to authorize this payment. Manage it under Security."
             >
               <Input
                 id="transfer-pin"
@@ -630,6 +630,10 @@ export function TransferPage() {
                 required
               />
             </Field>
+            <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+              Need to set or change your PIN?{' '}
+              <Link to="/app/profile">Open Security settings</Link>
+            </p>
           </div>
           <div className="row">
             <Button type="button" variant="secondary" onClick={() => setStep('form')} disabled={submitting}>
