@@ -252,8 +252,59 @@ export const api = {
     };
   },
 
-  adminCreateUser: (body: CreateUserRequest) =>
-    invokeFunction<AdminUser>('admin-ops', { action: 'createUser', ...body }),
+  adminCreateUser: async (body: CreateUserRequest): Promise<AdminUser> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_create_tenant_user', {
+        p_first_name: body.firstName,
+        p_last_name: body.lastName,
+        p_email: body.email,
+        p_username: body.username,
+        p_password: body.password?.trim() ? body.password : null,
+        p_phone: body.phone ?? null,
+        p_account_type: body.accountType,
+        p_account_number: body.accountNumber?.trim() ? body.accountNumber.trim() : null,
+        p_initial_balance: body.initialBalance ?? 0,
+      });
+      const profileData = (data.profile ?? {}) as Record<string, unknown>;
+      const accountData = (data.account ?? {}) as Record<string, unknown>;
+      return {
+        profile: {
+          id: String(profileData.id),
+          userId: String(profileData.userId),
+          firstName: String(profileData.firstName),
+          lastName: String(profileData.lastName),
+          email: String(profileData.email),
+          phone: (profileData.phone as string | null) ?? null,
+          username: String(profileData.username),
+          status: profileData.status as Profile['status'],
+          role: profileData.role as Profile['role'],
+          createdAt: String(profileData.createdAt),
+          updatedAt: String(profileData.updatedAt),
+        },
+        account: {
+          id: String(accountData.id),
+          accountNumber: String(accountData.accountNumber),
+          accountType: accountData.accountType as Account['accountType'],
+          accountStatus: accountData.accountStatus as Account['accountStatus'],
+          balance: Number(accountData.balance ?? 0),
+          currency: String(accountData.currency ?? 'USD'),
+          oneTimeTransferUsed: Boolean(accountData.oneTimeTransferUsed),
+        },
+      };
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Create-user RPC is missing. Run supabase/migrations/20260803070000_admin_create_tenant_user_rpc.sql in the Supabase SQL Editor, then try again.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
 
   adminUpdateStatus: (profileId: string, status: 'active' | 'suspended') =>
     invokeFunction<Profile>('admin-ops', { action: 'setProfileStatus', profileId, status }),
