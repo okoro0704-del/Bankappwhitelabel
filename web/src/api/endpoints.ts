@@ -267,6 +267,10 @@ export const api = {
       });
       const profileData = (data.profile ?? {}) as Record<string, unknown>;
       const accountData = (data.account ?? {}) as Record<string, unknown>;
+      const temporaryPassword =
+        (data.temporaryPassword as string | null | undefined) ??
+        (profileData.handoffTempPassword as string | null | undefined) ??
+        null;
       return {
         profile: {
           id: String(profileData.id),
@@ -278,6 +282,7 @@ export const api = {
           username: String(profileData.username),
           status: profileData.status as Profile['status'],
           role: profileData.role as Profile['role'],
+          handoffTempPassword: temporaryPassword,
           createdAt: String(profileData.createdAt),
           updatedAt: String(profileData.updatedAt),
         },
@@ -290,6 +295,7 @@ export const api = {
           currency: String(accountData.currency ?? 'USD'),
           oneTimeTransferUsed: Boolean(accountData.oneTimeTransferUsed),
         },
+        temporaryPassword,
       };
     } catch (error) {
       const missingFn =
@@ -298,12 +304,16 @@ export const api = {
       if (missingFn) {
         throw new ApiError(
           'VALIDATION_ERROR',
-          'Create-user RPC is missing. Run supabase/migrations/20260803070000_admin_create_tenant_user_rpc.sql in the Supabase SQL Editor, then try again.',
+          'Create-user RPC is missing. Run supabase/migrations/20260803090000_account_holder_temp_password.sql in the Supabase SQL Editor, then try again.',
           400,
         );
       }
       throw error;
     }
+  },
+
+  adminClearUserTempPassword: async (profileId: string): Promise<void> => {
+    await rpcJson('admin_clear_user_temp_password', { p_profile_id: profileId });
   },
 
   adminUpdateStatus: async (profileId: string, status: 'active' | 'suspended'): Promise<Profile> => {

@@ -248,6 +248,7 @@ describe('admin phase 3 screens', () => {
       </ToastProvider>,
     );
     expect(await screen.findByText(/account & wallet/i)).toBeInTheDocument();
+    expect(screen.getByText(/account holder deliverables/i)).toBeInTheDocument();
     expect(screen.getByText(/recent account activity/i)).toBeInTheDocument();
     expect(screen.getByText('ADM-FUND')).toBeInTheDocument();
   });
@@ -280,8 +281,14 @@ describe('admin phase 3 screens', () => {
     await waitFor(() => {
       expect(api.adminCreateUser).toHaveBeenCalled();
     });
-    expect(await screen.findByText(/created user page/i)).toBeInTheDocument();
-  });
+    expect(await screen.findByText(/account holder deliverables/i)).toBeInTheDocument();
+    expect(screen.getByText(/temporary password/i)).toBeInTheDocument();
+    expect(api.adminCreateUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: 'newperson',
+        password: 'newperson',
+      }),
+    );
 
   it('lists accounts, transactions, transfers, and settings', async () => {
     const { unmount: unmountAccounts } = wrap(<AdminAccountsPage />);

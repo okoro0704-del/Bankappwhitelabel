@@ -42,6 +42,8 @@ export interface Profile {
   username: string;
   status: AccountStatus;
   role: UserRole;
+  /** Admin deliverable — temporary password for the account holder (if still set). */
+  handoffTempPassword?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -139,6 +141,7 @@ export interface CreateTransferRequest {
 export interface AdminUser {
   profile: Profile;
   account: Account;
+  temporaryPassword?: string | null;
 }
 
 export interface CreateUserRequest {

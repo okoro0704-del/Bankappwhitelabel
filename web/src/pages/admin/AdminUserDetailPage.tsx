@@ -61,6 +61,23 @@ export function AdminUserDetailPage() {
   }
 
   const { profile, account } = detail.data;
+  const tempPassword = profile.handoffTempPassword ?? null;
+  const loginUrl = `${window.location.origin}/login`;
+
+  async function copyText(value: string) {
+    await navigator.clipboard.writeText(value);
+    pushToast('Copied', 'success');
+  }
+
+  async function clearTempPassword() {
+    try {
+      await api.adminClearUserTempPassword(profile.id);
+      pushToast('Temporary password cleared from deliverables', 'success');
+      await detail.reload();
+    } catch (err) {
+      pushToast(getFriendlyErrorMessage(err), 'error');
+    }
+  }
 
   return (
     <div className="page">
@@ -83,6 +100,50 @@ export function AdminUserDetailPage() {
             Fund wallet
           </Link>
         </div>
+      </div>
+
+      <div className="card card-pad stack" style={{ marginBottom: '1.25rem' }}>
+        <h2 style={{ fontSize: '1.1rem' }}>Account holder deliverables</h2>
+        <p className="muted">
+          Credentials for customer sign-in at <code>/login</code>. Rotate or clear the temporary
+          password after first login.
+        </p>
+        <dl className="definition-list">
+          <div>
+            <dt>Customer login URL</dt>
+            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span className="mono-break">{loginUrl}</span>
+              <Button type="button" variant="secondary" onClick={() => void copyText(loginUrl)}>
+                Copy
+              </Button>
+            </dd>
+          </div>
+          <div>
+            <dt>Username</dt>
+            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span className="mono-break">{profile.username}</span>
+              <Button type="button" variant="secondary" onClick={() => void copyText(profile.username)}>
+                Copy
+              </Button>
+            </dd>
+          </div>
+          <div>
+            <dt>Temporary password</dt>
+            <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span className="mono-break">{tempPassword ?? 'Not stored — set at creation or reset Auth password'}</span>
+              {tempPassword ? (
+                <>
+                  <Button type="button" variant="secondary" onClick={() => void copyText(tempPassword)}>
+                    Copy
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => void clearTempPassword()}>
+                    Clear from deliverables
+                  </Button>
+                </>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
       </div>
 
       <div className="grid-2">

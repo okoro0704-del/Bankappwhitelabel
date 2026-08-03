@@ -17,16 +17,20 @@ import type {
 export function mapProfile(row: Record<string, unknown>): Profile {
   return {
     id: String(row.id),
-    userId: String(row.user_id),
-    firstName: String(row.first_name),
-    lastName: String(row.last_name),
+    userId: String(row.user_id ?? row.userId),
+    firstName: String(row.first_name ?? row.firstName),
+    lastName: String(row.last_name ?? row.lastName),
     email: String(row.email),
     phone: (row.phone as string | null) ?? null,
     username: String(row.username),
     status: row.status as Profile['status'],
     role: row.role as Profile['role'],
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    handoffTempPassword:
+      (row.handoff_temp_password as string | null | undefined) ??
+      (row.handoffTempPassword as string | null | undefined) ??
+      null,
+    createdAt: String(row.created_at ?? row.createdAt),
+    updatedAt: String(row.updated_at ?? row.updatedAt),
   };
 }
 

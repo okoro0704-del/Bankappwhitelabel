@@ -6,13 +6,20 @@ import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { Field, Input, Select } from '../../components/ui/Field';
 import { useToast } from '../../components/ui/Toast';
-import type { AccountType } from '../../types/api';
+import type { AccountType, AdminUser } from '../../types/api';
+import { formatAccountNumber } from '../../utils/format';
+
+async function copyText(value: string) {
+  await navigator.clipboard.writeText(value);
+}
 
 export function AdminCreateUserPage() {
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useUsernameAsPassword, setUseUsernameAsPassword] = useState(true);
+  const [created, setCreated] = useState<AdminUser | null>(null);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -34,24 +41,127 @@ export function AdminCreateUserPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const created = await api.adminCreateUser({
+      const username = form.username.trim().toLowerCase();
+      const password = useUsernameAsPassword
+        ? username
+        : form.password.trim() || username;
+      const result = await api.adminCreateUser({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
-        username: form.username.trim(),
+        username,
         phone: form.phone.trim() || null,
         accountType: form.accountType,
         accountNumber: form.accountNumber.trim() || undefined,
-        password: form.password || undefined,
+        password,
         initialBalance: Number(form.initialBalance) || 0,
       });
-      pushToast('User created successfully', 'success');
-      navigate(`/admin/users/${created.profile.userId}`);
+      setCreated(result);
+      pushToast('User created — copy deliverables below', 'success');
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (created) {
+    const tempPassword =
+      created.temporaryPassword ?? created.profile.handoffTempPassword ?? created.profile.username;
+    const loginUrl = `${window.location.origin}/login`;
+
+    return (
+      <div className="page stack">
+        <div className="page-header">
+          <div>
+            <h1>Account holder deliverables</h1>
+            <p className="page-subtitle">
+              Share these credentials with the account holder. Customer login is username + password.
+            </p>
+          </div>
+        </div>
+
+        <Alert tone="success" title="User created">
+          {created.profile.firstName} {created.profile.lastName} can sign in at the customer login URL.
+        </Alert>
+
+        <div className="card card-pad stack">
+          <h2 style={{ fontSize: '1.05rem' }}>Handoff information</h2>
+          <dl className="definition-list">
+            <div>
+              <dt>Customer login URL</dt>
+              <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">{loginUrl}</span>
+                <Button type="button" variant="secondary" size="sm" onClick={() => void copyText(loginUrl)}>
+                  Copy
+                </Button>
+              </dd>
+            </div>
+            <div>
+              <dt>Username</dt>
+              <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">{created.profile.username}</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void copyText(created.profile.username)}
+                >
+                  Copy
+                </Button>
+              </dd>
+            </div>
+            <div>
+              <dt>Temporary password</dt>
+              <dd className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span className="mono-break">{tempPassword}</span>
+                <Button type="button" variant="secondary" size="sm" onClick={() => void copyText(tempPassword)}>
+                  Copy
+                </Button>
+              </dd>
+            </div>
+            <div>
+              <dt>Account number</dt>
+              <dd>{formatAccountNumber(created.account.accountNumber)}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{created.profile.email}</dd>
+            </div>
+          </dl>
+          <p className="muted" style={{ fontSize: '0.85rem' }}>
+            By default the temporary password matches the username. Ask the holder to change it after
+            first login.
+          </p>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <Button type="button" onClick={() => navigate(`/admin/users/${created.profile.userId}`)}>
+              Open user profile
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setCreated(null);
+                setForm({
+                  firstName: '',
+                  lastName: '',
+                  email: '',
+                  username: '',
+                  phone: '',
+                  accountType: 'escrow',
+                  accountNumber: '',
+                  password: '',
+                  initialBalance: '0',
+                });
+                setUseUsernameAsPassword(true);
+              }}
+            >
+              Create another user
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -97,7 +207,11 @@ export function AdminCreateUserPage() {
                 onChange={(e) => update('email', e.target.value)}
               />
             </Field>
-            <Field label="Username" htmlFor="username">
+            <Field
+              label="Username"
+              htmlFor="username"
+              hint="Letters, numbers, underscore only — also used as the default password"
+            >
               <Input
                 id="username"
                 required
@@ -112,16 +226,36 @@ export function AdminCreateUserPage() {
                 onChange={(e) => update('phone', e.target.value)}
               />
             </Field>
-            <Field label="Temporary password" htmlFor="password" hint="Optional — backend may generate one">
+          </div>
+
+          <label className="row" style={{ gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
+            <input
+              type="checkbox"
+              checked={useUsernameAsPassword}
+              onChange={(e) => setUseUsernameAsPassword(e.target.checked)}
+            />
+            <span>Use username as temporary password</span>
+          </label>
+
+          {!useUsernameAsPassword ? (
+            <Field
+              label="Temporary password"
+              htmlFor="password"
+              hint="Leave blank to fall back to the username"
+            >
               <Input
                 id="password"
-                type="password"
+                type="text"
                 autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => update('password', e.target.value)}
               />
             </Field>
-          </div>
+          ) : (
+            <Alert tone="info">
+              Temporary password will be set to the username and shown in deliverables after create.
+            </Alert>
+          )}
         </div>
 
         <div className="form-section">
@@ -162,11 +296,6 @@ export function AdminCreateUserPage() {
             </Field>
           </div>
         </div>
-
-        <Alert tone="info">
-          Account status is managed after creation via the profile status endpoint. Role is assigned
-          by the backend provisioning rules.
-        </Alert>
 
         <div className="row">
           <Button type="submit" disabled={submitting}>
