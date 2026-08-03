@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -36,20 +37,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [appUser, setAppUser] = useState<SessionUser | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const appUserRef = useRef<SessionUser | null>(null);
+  const sessionUserIdRef = useRef<string | null>(null);
+  const hydrateGen = useRef(0);
+
+  useEffect(() => {
+    appUserRef.current = appUser;
+  }, [appUser]);
+
+  useEffect(() => {
+    sessionUserIdRef.current = session?.user?.id ?? null;
+  }, [session]);
 
   const hydrate = useCallback(async (next: Session | null) => {
+    const gen = ++hydrateGen.current;
     setSession(next);
-    setError(null);
 
     if (!next) {
       setAppUser(null);
       return;
     }
 
+    // Same signed-in user already loaded — keep existing appUser (avoids login bounce).
+    if (appUserRef.current?.userId === next.user.id) {
+      setError(null);
+      return;
+    }
+
     try {
       const user = await loadAppUser();
+      if (gen !== hydrateGen.current) return;
       setAppUser(user);
+      setError(null);
     } catch (err) {
+      if (gen !== hydrateGen.current) return;
       setAppUser(null);
       if (err instanceof ApiError && err.code === 'ACCOUNT_INACTIVE') {
         setError(getFriendlyErrorMessage(err));
@@ -57,12 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         return;
       }
-      if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') {
-        setError(getFriendlyErrorMessage(err));
-        await getSupabase().auth.signOut();
-        setSession(null);
-        return;
-      }
+      // Do not sign out on profile load failures — that bounces users off /admin right after login.
       setError(getFriendlyErrorMessage(err));
     }
   }, []);
@@ -70,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    void (async () => {
       try {
         const { data } = await getSupabase().auth.getSession();
         if (!mounted) return;
@@ -86,13 +102,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    const { data: subscription } = getSupabase().auth.onAuthStateChange(
-      async (_event, nextSession) => {
-        setLoading(true);
-        await hydrate(nextSession);
-        setLoading(false);
-      },
-    );
+    const { data: subscription } = getSupabase().auth.onAuthStateChange((event, nextSession) => {
+      // Defer to avoid supabase-js auth deadlocks with async callbacks.
+      window.setTimeout(() => {
+        void (async () => {
+          if (!mounted) return;
+
+          if (event === 'SIGNED_OUT') {
+            setSession(null);
+            setAppUser(null);
+            setError(null);
+            setLoading(false);
+            return;
+          }
+
+          const sameUser =
+            Boolean(nextSession?.user?.id) &&
+            (appUserRef.current?.userId === nextSession?.user?.id ||
+              sessionUserIdRef.current === nextSession?.user?.id);
+
+          // Keep the shell mounted after login; flipping loading clears ProtectedRoute briefly.
+          if (!sameUser) setLoading(true);
+          await hydrate(nextSession);
+          if (mounted) setLoading(false);
+        })();
+      }, 0);
+    });
 
     return () => {
       mounted = false;
@@ -100,57 +135,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrate]);
 
-  const signIn = useCallback(async (usernameOrEmail: string, password: string) => {
-    setError(null);
-    const identifier = usernameOrEmail.trim();
-    let email = identifier;
+  const signIn = useCallback(
+    async (usernameOrEmail: string, password: string) => {
+      setError(null);
+      const identifier = usernameOrEmail.trim();
+      let email = identifier;
 
-    if (!identifier.includes('@')) {
-      const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
-        p_identifier: identifier,
+      if (!identifier.includes('@')) {
+        const { data: resolved, error: resolveError } = await getSupabase().rpc('resolve_login_email', {
+          p_identifier: identifier,
+        });
+        if (resolveError) {
+          throw new ApiError('INTERNAL_ERROR', resolveError.message, 500);
+        }
+        if (!resolved || typeof resolved !== 'string') {
+          const message = 'Invalid username or password.';
+          setError(message);
+          throw new ApiError('INVALID_CREDENTIALS', message, 401);
+        }
+        email = resolved;
+      }
+
+      const { data, error: authError } = await getSupabase().auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
       });
-      if (resolveError) {
-        throw new ApiError('INTERNAL_ERROR', resolveError.message, 500);
-      }
-      if (!resolved || typeof resolved !== 'string') {
-        const message = 'Invalid username or password.';
+
+      if (authError || !data.session) {
+        const message = (authError?.message ?? '').toLowerCase().includes('invalid')
+          ? 'Invalid username or password.'
+          : (authError?.message ?? 'Unable to sign in.');
         setError(message);
         throw new ApiError('INVALID_CREDENTIALS', message, 401);
       }
-      email = resolved;
-    }
 
-    const { data, error: authError } = await getSupabase().auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+      setSession(data.session);
+      setLoading(false);
 
-    if (authError) {
-      const message = authError.message.toLowerCase().includes('invalid')
-        ? 'Invalid username or password.'
-        : authError.message;
-      setError(message);
-      throw new ApiError('INVALID_CREDENTIALS', message, 401);
-    }
-
-    await hydrate(data.session);
-    try {
-      const user = await loadAppUser();
-      setAppUser(user);
-      return user;
-    } catch (err) {
-      await getSupabase().auth.signOut();
-      setSession(null);
-      setAppUser(null);
-      if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') {
-        const message =
-          'Sign-in succeeded but no bank profile is linked. In Web Finance, use “Enable admin login” on the application.';
-        setError(message);
-        throw new ApiError('INVALID_CREDENTIALS', message, 401);
+      try {
+        const user = await loadAppUser();
+        setAppUser(user);
+        setError(null);
+        return user;
+      } catch (err) {
+        setAppUser(null);
+        if (err instanceof ApiError && err.code === 'UNAUTHENTICATED') {
+          await getSupabase().auth.signOut();
+          setSession(null);
+          const message =
+            'Sign-in succeeded but no bank profile is linked. In Web Finance, use “Enable admin login” on the application.';
+          setError(message);
+          throw new ApiError('INVALID_CREDENTIALS', message, 401);
+        }
+        setError(getFriendlyErrorMessage(err));
+        throw err;
       }
-      throw err;
-    }
-  }, [hydrate]);
+    },
+    [],
+  );
 
   const signOut = useCallback(async () => {
     setError(null);

@@ -31,14 +31,16 @@ export function mapProfile(row: Record<string, unknown>): Profile {
 }
 
 export function mapSession(data: Record<string, unknown>): SessionUser {
+  const roleRaw = String(data.role ?? 'user').toLowerCase();
+  const role = roleRaw === 'admin' ? 'admin' : 'user';
   return {
     userId: String(data.userId),
-    role: data.role as SessionUser['role'],
+    role,
     accountStatus: data.accountStatus as SessionUser['accountStatus'],
-    email: String(data.email),
-    username: String(data.username),
-    firstName: String(data.firstName),
-    lastName: String(data.lastName),
+    email: String(data.email ?? ''),
+    username: String(data.username ?? ''),
+    firstName: String(data.firstName ?? ''),
+    lastName: String(data.lastName ?? ''),
     isMasterAdmin: Boolean(data.isMasterAdmin),
   };
 }

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
+import { homePathForUser } from '../../auth/homePath';
 import { getFriendlyErrorMessage } from '../../api/errors';
 import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
@@ -30,7 +31,7 @@ export function LoginPage() {
         setError('This page is for customer accounts. Use Admin sign in instead.');
         return;
       }
-      navigate('/app', { replace: true });
+      navigate(homePathForUser(user), { replace: true });
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -120,7 +121,7 @@ export function AdminLoginPage() {
         setError('This page is for administrators. Use customer sign in instead.');
         return;
       }
-      navigate('/admin', { replace: true });
+      navigate(homePathForUser(user), { replace: true });
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {

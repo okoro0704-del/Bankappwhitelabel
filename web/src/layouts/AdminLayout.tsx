@@ -35,7 +35,7 @@ export function AdminLayout() {
 
   const name = appUser ? fullName(appUser.firstName, appUser.lastName) : 'Admin';
   const initials = appUser
-    ? `${appUser.firstName[0] ?? ''}${appUser.lastName[0] ?? ''}`.toUpperCase()
+    ? `${(appUser.firstName?.[0] ?? 'A')}${(appUser.lastName?.[0] ?? '')}`.toUpperCase()
     : 'A';
 
   return (

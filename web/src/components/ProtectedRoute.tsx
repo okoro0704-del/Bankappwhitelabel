@@ -1,10 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { homePathForUser } from '../auth/homePath';
-import { Skeleton } from './ui/Feedback';
+import { Alert, Skeleton } from './ui/Feedback';
+import { Button } from './ui/Button';
 
 export function ProtectedRoute({ role }: { role?: 'admin' | 'user' }) {
-  const { loading, session, appUser } = useAuth();
+  const { loading, session, appUser, error, signOut, refreshAppUser } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -19,13 +20,40 @@ export function ProtectedRoute({ role }: { role?: 'admin' | 'user' }) {
     );
   }
 
-  if (!session || !appUser) {
+  if (!session) {
     return (
       <Navigate
         to={role === 'admin' ? '/admin/login' : '/login'}
         replace
         state={{ from: location.pathname }}
       />
+    );
+  }
+
+  // Session exists but profile failed to load — stay put instead of bouncing to login.
+  if (!appUser) {
+    return (
+      <div className="auth-panel">
+        <div className="auth-card stack">
+          <Alert tone="error" title="Could not load your account">
+            {error ?? 'Your session is active but the account profile could not be loaded.'}
+          </Alert>
+          <div className="row">
+            <Button type="button" onClick={() => void refreshAppUser()}>
+              Try again
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                await signOut();
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -55,5 +83,6 @@ export function PublicOnlyRoute() {
     return <Navigate to={homePathForUser(appUser)} replace />;
   }
 
+  // Session without profile: let login pages render (and show auth errors).
   return <Outlet />;
 }
