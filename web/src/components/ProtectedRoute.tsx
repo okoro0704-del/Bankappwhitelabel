@@ -1,6 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { homePathForUser } from '../auth/homePath';
 import { Alert, Skeleton } from './ui/Feedback';
 import { Button } from './ui/Button';
 
@@ -68,8 +67,14 @@ export function ProtectedRoute({ role }: { role?: 'admin' | 'user' }) {
   return <Outlet />;
 }
 
+/**
+ * Public auth screens.
+ * `/login` is customer-only and must never redirect tenant admins into `/admin`.
+ * `/admin/login` is for administrators only.
+ */
 export function PublicOnlyRoute() {
   const { loading, session, appUser } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -80,9 +85,28 @@ export function PublicOnlyRoute() {
   }
 
   if (session && appUser) {
-    return <Navigate to={homePathForUser(appUser)} replace />;
+    const path = location.pathname;
+
+    if (path === '/login' || path === '/forgot-password') {
+      // Customer URLs: customers go to their app; admins stay on the customer login screen.
+      if (appUser.role === 'admin') {
+        return <Outlet />;
+      }
+      return <Navigate to="/app" replace />;
+    }
+
+    if (path === '/admin/login') {
+      if (appUser.role === 'admin') {
+        return <Navigate to="/admin" replace />;
+      }
+      return <Navigate to="/app" replace />;
+    }
+
+    if (appUser.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to="/app" replace />;
   }
 
-  // Session without profile: let login pages render (and show auth errors).
   return <Outlet />;
 }

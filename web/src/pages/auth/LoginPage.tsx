@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
-import { homePathForUser } from '../../auth/homePath';
 import { getFriendlyErrorMessage } from '../../api/errors';
 import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
@@ -11,7 +10,7 @@ import { useTenant } from '../../tenant/TenantProvider';
 
 /** Customer account sign-in — username + password only. */
 export function LoginPage() {
-  const { signIn, signOut, error: sessionError } = useAuth();
+  const { signIn, signOut, session, appUser, error: sessionError } = useAuth();
   const { branding } = useTenant();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -20,19 +19,23 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const applicationName = branding?.applicationName ?? 'your account';
+  const adminSessionActive = Boolean(session && appUser?.role === 'admin');
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
+      if (adminSessionActive) {
+        await signOut();
+      }
       const user = await signIn(username, password);
       if (user.role === 'admin') {
         await signOut();
         setError('This page is for customer accounts. Use Admin sign in instead.');
         return;
       }
-      navigate(homePathForUser(user), { replace: true });
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {
@@ -55,6 +58,30 @@ export function LoginPage() {
           {branding?.loginSubtitle ?? `Sign in to your ${applicationName} account.`}
         </p>
       </div>
+
+      {adminSessionActive ? (
+        <Alert tone="info" title="Admin session active">
+          You are signed in as an administrator. This page is for customer accounts only.{' '}
+          <Link to="/admin">Open admin dashboard</Link>
+          {' · '}
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => void signOut()}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'inherit',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              font: 'inherit',
+            }}
+          >
+            Sign out admin
+          </button>
+        </Alert>
+      ) : null}
 
       {(error || sessionError) && (
         <Alert tone="error" title="Unable to sign in">
@@ -131,7 +158,7 @@ export function AdminLoginPage() {
         setError('This page is for administrators. Use customer sign in instead.');
         return;
       }
-      navigate(homePathForUser(user), { replace: true });
+      navigate('/admin', { replace: true });
     } catch (err) {
       setError(getFriendlyErrorMessage(err));
     } finally {
