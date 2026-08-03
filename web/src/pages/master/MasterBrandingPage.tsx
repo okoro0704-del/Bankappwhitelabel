@@ -156,7 +156,11 @@ export function MasterBrandingPage() {
               onChange={(e) => update('applicationName', e.target.value)}
             />
           </Field>
-          <Field label="Logo URL" htmlFor="brand-logo" hint="HTTPS URL if hosted externally.">
+          <Field
+            label="Logo URL"
+            htmlFor="brand-logo"
+            hint="HTTPS URL, or a same-origin path like /cit-bank-logo.png"
+          >
             <Input
               id="brand-logo"
               value={draft.logoUrl ?? ''}

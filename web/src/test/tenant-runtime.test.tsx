@@ -84,13 +84,14 @@ describe('branding sanitization', () => {
     expect(sanitizeHexColor('javascript:alert(1)', '#0B3D2E')).toBe('#0B3D2E');
   });
 
-  it('accepts only http(s) public URLs', () => {
+  it('accepts http(s) and same-origin relative public URLs', () => {
     expect(sanitizePublicUrl('https://cdn.example.com/logo.png')).toBe(
       'https://cdn.example.com/logo.png',
     );
+    expect(sanitizePublicUrl('/cit-bank-logo.png')).toBe('/cit-bank-logo.png');
     expect(sanitizePublicUrl('javascript:alert(1)')).toBeNull();
     expect(sanitizePublicUrl('data:text/html,hi')).toBeNull();
-    expect(sanitizePublicUrl('/relative.png')).toBeNull();
+    expect(sanitizePublicUrl('//evil.example/x.png')).toBeNull();
   });
 
   it('sanitizes branding payloads safely', () => {

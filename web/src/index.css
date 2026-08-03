@@ -664,10 +664,49 @@ img {
 }
 
 .shell-brand-logo {
-  width: 2.25rem;
+  width: auto;
   height: 2.25rem;
-  border-radius: 0.65rem;
+  max-width: 9.5rem;
+  border-radius: 0.35rem;
   object-fit: contain;
+  object-position: left center;
+  background: #fff;
+  padding: 0.2rem 0.35rem;
+}
+
+.shell-brand-logo--wordmark {
+  height: 2.75rem;
+  max-width: 12rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.shell-brand-logo--hero {
+  height: clamp(3.5rem, 10vw, 5.5rem);
+  max-width: min(22rem, 90vw);
+  padding: 0.65rem 1rem;
+  border-radius: 0.75rem;
+}
+
+.shell-brand--logo {
+  align-items: center;
+}
+
+.auth-card-brand {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.auth-card-brand .shell-brand-logo {
+  height: 3rem;
+  max-width: 14rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.landing-hero-logo {
+  margin-bottom: 0.25rem;
+}
+
+.landing-brand .shell-brand-logo {
   background: #fff;
 }
 

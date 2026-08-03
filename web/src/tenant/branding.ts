@@ -12,13 +12,21 @@ export function sanitizeHexColor(value: string | null | undefined, fallback: str
 }
 
 /**
- * Allow only absolute http(s) URLs for logos/favicons.
- * Blocks javascript:, data:, and relative paths that could be surprising.
+ * Allow absolute http(s) URLs, or same-origin relative paths under `/`
+ * (e.g. `/cit-bank-logo.png` served from the SPA public folder).
+ * Blocks javascript:, data:, and protocol-relative URLs.
  */
 export function sanitizePublicUrl(value: string | null | undefined): string | null {
   if (!value || typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+
+  // Same-origin public asset path
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    if (trimmed.includes('://') || trimmed.toLowerCase().includes('javascript:')) return null;
+    return trimmed;
+  }
+
   try {
     const url = new URL(trimmed);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;

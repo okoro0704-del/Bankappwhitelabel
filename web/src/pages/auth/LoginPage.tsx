@@ -6,6 +6,7 @@ import { getFriendlyErrorMessage } from '../../api/errors';
 import { Alert } from '../../components/ui/Feedback';
 import { Button } from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
+import { BrandMark } from '../../tenant/BrandMark';
 import { useTenant } from '../../tenant/TenantProvider';
 
 /** Customer account sign-in — username + password only. */
@@ -41,6 +42,13 @@ export function LoginPage() {
 
   return (
     <div className="auth-card">
+      <div className="auth-card-brand">
+        <BrandMark
+          applicationName={applicationName === 'your account' ? 'Bank' : applicationName}
+          logoUrl={branding?.logoUrl}
+          size="wordmark"
+        />
+      </div>
       <div>
         <h2>Customer sign in</h2>
         <p className="page-subtitle">
@@ -104,11 +112,13 @@ export function LoginPage() {
 /** Tenant admin sign-in — username + password. */
 export function AdminLoginPage() {
   const { signIn, signOut, error: sessionError } = useAuth();
+  const { branding } = useTenant();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const applicationName = branding?.applicationName ?? 'Application';
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -131,6 +141,9 @@ export function AdminLoginPage() {
 
   return (
     <div className="auth-card">
+      <div className="auth-card-brand">
+        <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} size="wordmark" />
+      </div>
       <div>
         <h2>Admin sign in</h2>
         <p className="page-subtitle">Sign in to manage users, funding, and transfers.</p>
@@ -187,6 +200,7 @@ export function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const applicationName = branding?.applicationName ?? 'Application';
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -204,6 +218,9 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="auth-card">
+      <div className="auth-card-brand">
+        <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} size="wordmark" />
+      </div>
       <div>
         <h2>Reset password</h2>
         <p className="page-subtitle">Enter the email on your account to receive a reset link.</p>

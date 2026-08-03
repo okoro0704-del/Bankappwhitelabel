@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BrandMark } from '../../tenant/BrandMark';
+import { sanitizePublicUrl } from '../../tenant/branding';
 import { useTenant } from '../../tenant/TenantProvider';
 
 export function LandingPage() {
@@ -10,6 +11,7 @@ export function LandingPage() {
     branding?.loginSubtitle ?? 'Secure access to your accounts, transfers, and statements.';
   const supportEmail = branding?.supportEmail;
   const supportPhone = branding?.supportPhone;
+  const hasLogo = Boolean(sanitizePublicUrl(branding?.logoUrl ?? null));
 
   return (
     <div className="landing">
@@ -21,17 +23,35 @@ export function LandingPage() {
       >
         <div className="landing-hero-shade" />
         <header className="landing-top">
-          <div className="shell-brand landing-brand">
-            <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} />
-            <div>
-              <div className="shell-brand-name">{applicationName}</div>
+          <div className={`shell-brand landing-brand${hasLogo ? ' shell-brand--logo' : ''}`}>
+            <BrandMark
+              applicationName={applicationName}
+              logoUrl={branding?.logoUrl}
+              size="wordmark"
+            />
+            {!hasLogo ? (
+              <div>
+                <div className="shell-brand-name">{applicationName}</div>
+                <div className="shell-brand-tag">Personal banking</div>
+              </div>
+            ) : (
               <div className="shell-brand-tag">Personal banking</div>
-            </div>
+            )}
           </div>
         </header>
 
         <div className="landing-hero-content">
-          <h1 className="landing-brand-title">{applicationName}</h1>
+          {hasLogo ? (
+            <div className="landing-hero-logo">
+              <BrandMark
+                applicationName={applicationName}
+                logoUrl={branding?.logoUrl}
+                size="hero"
+              />
+            </div>
+          ) : (
+            <h1 className="landing-brand-title">{applicationName}</h1>
+          )}
           <p className="landing-support">{subtitle}</p>
           <Link className="landing-login-btn" to="/login" aria-label="Customer account login">
             <span className="landing-login-icon" aria-hidden>

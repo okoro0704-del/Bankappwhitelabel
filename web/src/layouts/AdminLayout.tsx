@@ -42,11 +42,15 @@ export function AdminLayout() {
     <div className="shell">
       <aside className="shell-sidebar" aria-label="Admin">
         <div className="shell-brand">
-          <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} />
-          <div>
-            <div className="shell-brand-name">{applicationName}</div>
+          <BrandMark applicationName={applicationName} logoUrl={branding?.logoUrl} size="wordmark" />
+          {!branding?.logoUrl ? (
+            <div>
+              <div className="shell-brand-name">{applicationName}</div>
+              <div className="shell-brand-tag">Admin console</div>
+            </div>
+          ) : (
             <div className="shell-brand-tag">Admin console</div>
-          </div>
+          )}
         </div>
         <nav>
           <ul className="nav-list">
