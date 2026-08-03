@@ -98,12 +98,27 @@ async function createTransfer(admin: Admin, actor: Actor, body: Record<string, u
   const recipientName = String(body.recipientName ?? '').trim();
   const recipientAccount = String(body.recipientAccount ?? '').trim();
   const recipientBank = String(body.recipientBank ?? '').trim();
+  const recipientSwift = String(body.recipientSwift ?? '')
+    .replace(/\s+/g, '')
+    .toUpperCase() || null;
+  const recipientIban = String(body.recipientIban ?? '')
+    .replace(/\s+/g, '')
+    .toUpperCase() || null;
   const amount = Number(body.amount);
   const idempotencyKey = String(body.idempotencyKey ?? '').trim();
   const description = body.description ? String(body.description).trim() : null;
 
   if (!recipientName || !recipientAccount || !recipientBank || !idempotencyKey || !(amount > 0)) {
     throw Object.assign(new Error('Invalid transfer input'), { code: 'VALIDATION_ERROR', status: 400 });
+  }
+  if (recipientSwift && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(recipientSwift)) {
+    throw Object.assign(new Error('SWIFT/BIC must be 8 or 11 letters or digits'), {
+      code: 'VALIDATION_ERROR',
+      status: 400,
+    });
+  }
+  if (recipientIban && !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(recipientIban)) {
+    throw Object.assign(new Error('Enter a valid IBAN'), { code: 'VALIDATION_ERROR', status: 400 });
   }
 
   const { data: existing } = await admin
@@ -148,6 +163,8 @@ async function createTransfer(admin: Admin, actor: Actor, body: Record<string, u
     recipient_name: recipientName,
     recipient_account: recipientAccount,
     recipient_bank: recipientBank,
+    recipient_swift: recipientSwift,
+    recipient_iban: recipientIban,
     amount,
     description,
   };

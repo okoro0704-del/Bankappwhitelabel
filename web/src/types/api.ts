@@ -107,6 +107,8 @@ export interface TransferRecipient {
   name: string;
   account: string;
   bank: string;
+  swift?: string | null;
+  iban?: string | null;
 }
 
 export interface Transfer {
@@ -156,6 +158,8 @@ export interface CreateTransferRequest {
   recipientName: string;
   recipientAccount: string;
   recipientBank: string;
+  recipientSwift?: string;
+  recipientIban?: string;
   amount: number;
   description?: string;
   idempotencyKey: string;

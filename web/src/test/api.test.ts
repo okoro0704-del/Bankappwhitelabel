@@ -52,7 +52,39 @@ describe('Supabase row mappers', () => {
         updated_at: '2026-01-01T00:00:00Z',
         completed_at: null,
       }).recipient,
-    ).toEqual({ name: 'Bob', account: '123', bank: 'Bank' });
+    ).toEqual({ name: 'Bob', account: '123', bank: 'Bank', swift: null, iban: null });
+  });
+
+  it('maps transfer recipient SWIFT and IBAN', () => {
+    expect(
+      mapTransfer({
+        id: 't2',
+        reference: 'TRF2',
+        status: 'processing',
+        amount: 5,
+        recipient: {
+          name: 'Ada',
+          account: '999',
+          bank: 'HSBC',
+          swift: 'HSBCGB2L',
+          iban: 'GB29NWBK60161331926819',
+        },
+        description: null,
+        current_stage: 1,
+        stages_completed: 0,
+        reason_code: null,
+        failure_reason: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        completed_at: null,
+      }).recipient,
+    ).toEqual({
+      name: 'Ada',
+      account: '999',
+      bank: 'HSBC',
+      swift: 'HSBCGB2L',
+      iban: 'GB29NWBK60161331926819',
+    });
   });
 });
 

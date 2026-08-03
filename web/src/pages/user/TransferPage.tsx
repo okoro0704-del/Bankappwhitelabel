@@ -23,8 +23,6 @@ import {
 import {
   isTerminalTransferStatus,
   isVerificationStatus,
-  progressFloorForStage,
-  progressGateForStage,
   stageFromStatus,
 } from '../../transfer/visualProgress';
 import { MOCK_BANKS } from '../../data/banks';
@@ -43,9 +41,19 @@ const emptyDraft: TransferDraft = {
   recipientName: '',
   recipientAccount: '',
   recipientBank: '',
+  recipientSwift: '',
+  recipientIban: '',
   amount: '',
   description: '',
 };
+
+function normalizeSwift(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
+}
+
+function normalizeIban(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
+}
 
 function limitReachedMessage(code?: string | null, fallback?: string | null): string {
   if (code === 'TRANSFER_LIMIT_REACHED') {
@@ -76,8 +84,6 @@ export function TransferPage() {
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [failureMessage, setFailureMessage] = useState('Your transfer could not be completed.');
-  const [progressFrom, setProgressFrom] = useState(0);
-  const [progressTarget, setProgressTarget] = useState(12);
   const [afterProgress, setAfterProgress] = useState<'verification' | 'completed' | null>(null);
 
   const idempotencyKeyRef = useRef<string | null>(null);
@@ -100,19 +106,13 @@ export function TransferPage() {
   );
 
   const runProgressToVerification = useCallback((stage: number, skipAnimation = false) => {
-    const gate = progressGateForStage(stage);
-    const floor = progressFloorForStage(stage);
     setCode('');
     setCodeError(null);
     if (skipAnimation) {
-      setProgressFrom(gate);
-      setProgressTarget(gate);
       setAfterProgress(null);
       setStep('verification');
       return;
     }
-    setProgressFrom(floor);
-    setProgressTarget(gate);
     setAfterProgress('verification');
     setProcessingMessage(
       stage <= 1 ? 'Processing your transfer…' : 'Continuing your transfer…',
@@ -120,9 +120,7 @@ export function TransferPage() {
     setStep('processing');
   }, []);
 
-  const runProgressToCompleted = useCallback((fromStage: number) => {
-    setProgressFrom(progressGateForStage(fromStage));
-    setProgressTarget(100);
+  const runProgressToCompleted = useCallback(() => {
     setAfterProgress('completed');
     setProcessingMessage('Finalizing your transfer…');
     setStep('processing');
@@ -163,8 +161,6 @@ export function TransferPage() {
     setVerification(null);
     setCode('');
     setCodeError(null);
-    setProgressFrom(0);
-    setProgressTarget(12);
     setAfterProgress(null);
     setStep('form');
     void loadPendingTransfers();
@@ -195,9 +191,7 @@ export function TransferPage() {
         clearActiveTransferId();
         syncTransferInUrl(null);
         await refreshWallet().catch(() => undefined);
-        const stageDone =
-          next.stage || next.transfer?.currentStage || existing?.currentStage || 4;
-        runProgressToCompleted(Number(stageDone) || 4);
+        runProgressToCompleted();
         return;
       }
 
@@ -343,8 +337,6 @@ export function TransferPage() {
         amount: record.amount,
         transfer: record,
       });
-      setProgressFrom(8);
-      setProgressTarget(18);
       setAfterProgress(null);
       setProcessingMessage('Transfer is still processing…');
       setStep('processing');
@@ -445,6 +437,14 @@ export function TransferPage() {
       next.recipientAccount = 'Enter an account number with 8–20 digits';
     }
     if (!draft.recipientBank.trim()) next.recipientBank = 'Recipient bank is required';
+    const swift = normalizeSwift(draft.recipientSwift);
+    if (swift && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swift)) {
+      next.recipientSwift = 'SWIFT/BIC must be 8 or 11 letters or digits';
+    }
+    const iban = normalizeIban(draft.recipientIban);
+    if (iban && !/^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban)) {
+      next.recipientIban = 'Enter a valid IBAN';
+    }
     const amount = Number(draft.amount);
     if (!draft.amount.trim() || Number.isNaN(amount) || amount <= 0) {
       next.amount = 'Enter a positive amount';
@@ -471,19 +471,21 @@ export function TransferPage() {
     setSubmitting(true);
     setFormError(null);
     setProcessingMessage('Submitting your transfer…');
-    setProgressFrom(0);
-    setProgressTarget(18);
     setAfterProgress(null);
     setStep('processing');
 
     const key = idempotencyKeyRef.current ?? createIdempotencyKey('xfer');
     idempotencyKeyRef.current = key;
+    const swift = normalizeSwift(draft.recipientSwift);
+    const iban = normalizeIban(draft.recipientIban);
 
     try {
       const result = await api.createTransfer({
         recipientName: draft.recipientName.trim(),
         recipientAccount: draft.recipientAccount.replace(/\D/g, ''),
         recipientBank: draft.recipientBank.trim(),
+        recipientSwift: swift || undefined,
+        recipientIban: iban || undefined,
         amount: Number(draft.amount),
         description: draft.description.trim() || undefined,
         idempotencyKey: key,
@@ -537,6 +539,8 @@ export function TransferPage() {
             name: draft.recipientName,
             account: draft.recipientAccount.replace(/\D/g, ''),
             bank: draft.recipientBank,
+            swift: swift || null,
+            iban: iban || null,
           },
           description: draft.description || null,
           currentStage: 0,
@@ -566,6 +570,8 @@ export function TransferPage() {
             name: draft.recipientName,
             account: draft.recipientAccount.replace(/\D/g, ''),
             bank: draft.recipientBank,
+            swift: swift || null,
+            iban: iban || null,
           },
           description: draft.description || null,
           currentStage: 0,
@@ -646,8 +652,6 @@ export function TransferPage() {
     setCode('');
     setCodeError(null);
     setFailureMessage('Your transfer could not be completed.');
-    setProgressFrom(0);
-    setProgressTarget(12);
     setAfterProgress(null);
     setStep('form');
     void refreshWallet().catch(() => undefined);
@@ -826,6 +830,34 @@ export function TransferPage() {
                   ))}
                 </datalist>
               </Field>
+              <Field
+                label="SWIFT / BIC"
+                htmlFor="recipientSwift"
+                error={fieldErrors.recipientSwift}
+                hint="Optional · 8 or 11 characters"
+              >
+                <Input
+                  id="recipientSwift"
+                  autoComplete="off"
+                  placeholder="e.g. CHASUS33"
+                  value={draft.recipientSwift}
+                  onChange={(e) => updateDraft('recipientSwift', e.target.value.toUpperCase())}
+                />
+              </Field>
+              <Field
+                label="IBAN"
+                htmlFor="recipientIban"
+                error={fieldErrors.recipientIban}
+                hint="Optional"
+              >
+                <Input
+                  id="recipientIban"
+                  autoComplete="off"
+                  placeholder="e.g. GB29 NWBK 6016 1331 9268 19"
+                  value={draft.recipientIban}
+                  onChange={(e) => updateDraft('recipientIban', e.target.value.toUpperCase())}
+                />
+              </Field>
               <Field label="Amount" htmlFor="amount" error={fieldErrors.amount}>
                 <Input
                   id="amount"
@@ -906,8 +938,6 @@ export function TransferPage() {
           action={action}
           currency={currency}
           message={processingMessage}
-          progressPercent={progressTarget}
-          animateFrom={progressFrom}
           onProgressReached={afterProgress ? onProgressReached : undefined}
         />
       ) : null}

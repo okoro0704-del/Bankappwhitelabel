@@ -100,6 +100,18 @@ export function TransferDetailModal({
               <dt>Recipient bank</dt>
               <dd>{transfer.recipient.bank}</dd>
             </div>
+            {transfer.recipient.swift ? (
+              <div>
+                <dt>SWIFT / BIC</dt>
+                <dd>{transfer.recipient.swift}</dd>
+              </div>
+            ) : null}
+            {transfer.recipient.iban ? (
+              <div>
+                <dt>IBAN</dt>
+                <dd className="mono-break">{transfer.recipient.iban}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Description</dt>
               <dd>{transfer.description || '—'}</dd>

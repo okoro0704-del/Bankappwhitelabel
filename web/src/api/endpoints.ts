@@ -232,6 +232,8 @@ export const api = {
         p_idempotency_key: body.idempotencyKey,
         p_description: body.description ?? null,
         p_pin: body.pin,
+        p_recipient_swift: body.recipientSwift ?? null,
+        p_recipient_iban: body.recipientIban ?? null,
       });
       return mapTransferAction(data);
     } catch (error) {

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Feedback';
 import { formatAccountNumber, formatDate, formatMoney, statusLabel } from '../../utils/format';
@@ -7,13 +8,16 @@ import {
   verificationCodeSubtitle,
   verificationCodeTitle,
 } from '../../transfer/visualProgress';
-import { TransferProgressBar } from './Progress';
 import { VerificationCodeInput } from './VerificationCodeInput';
+
+const IS_TEST = import.meta.env.MODE === 'test';
 
 export interface TransferDraft {
   recipientName: string;
   recipientAccount: string;
   recipientBank: string;
+  recipientSwift: string;
+  recipientIban: string;
   amount: string;
   description: string;
 }
@@ -35,9 +39,11 @@ function resolveRecipient(props: SummaryProps) {
       name: props.draft.recipientName,
       account: props.draft.recipientAccount,
       bank: props.draft.recipientBank,
+      swift: props.draft.recipientSwift.trim() || null,
+      iban: props.draft.recipientIban.trim() || null,
     };
   }
-  return { name: '—', account: '—', bank: '—' };
+  return { name: '—', account: '—', bank: '—', swift: null, iban: null };
 }
 
 function resolveAmount(props: SummaryProps): number {
@@ -78,6 +84,18 @@ export function TransferDetailsCard(props: SummaryProps & { title?: string }) {
           <dt>Bank</dt>
           <dd>{recipient.bank}</dd>
         </div>
+        {recipient.swift ? (
+          <div>
+            <dt>SWIFT / BIC</dt>
+            <dd>{recipient.swift}</dd>
+          </div>
+        ) : null}
+        {recipient.iban ? (
+          <div>
+            <dt>IBAN</dt>
+            <dd className="mono-break">{recipient.iban}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Amount</dt>
           <dd className="balance-display" style={{ fontSize: '1.5rem' }}>
@@ -116,18 +134,24 @@ export function ProcessingPanel({
   action,
   currency,
   message,
-  progressPercent,
-  animateFrom,
   onProgressReached,
 }: {
   transfer?: Transfer | null;
   action?: TransferActionResponse | null;
   currency: string;
   message: string;
-  progressPercent: number;
-  animateFrom?: number;
   onProgressReached?: () => void;
 }) {
+  const onReachedRef = useRef(onProgressReached);
+  onReachedRef.current = onProgressReached;
+
+  useEffect(() => {
+    if (!onProgressReached) return;
+    const delay = IS_TEST ? 0 : 1400;
+    const id = window.setTimeout(() => onReachedRef.current?.(), delay);
+    return () => window.clearTimeout(id);
+  }, [onProgressReached, message]);
+
   return (
     <div className="card card-pad stack xfer-processing">
       <div className="xfer-spinner" aria-hidden />
@@ -137,12 +161,6 @@ export function ProcessingPanel({
           {message}
         </p>
       </div>
-      <TransferProgressBar
-        percent={progressPercent}
-        animateFrom={animateFrom}
-        label="Processing"
-        onReached={onProgressReached}
-      />
       <TransferDetailsCard transfer={transfer} action={action} currency={currency} />
     </div>
   );

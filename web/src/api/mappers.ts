@@ -121,6 +121,14 @@ export function mapTransfer(row: Record<string, unknown>): Transfer {
       name: String(recipient.name ?? row.recipient_name ?? ''),
       account: String(recipient.account ?? row.recipient_account ?? ''),
       bank: String(recipient.bank ?? row.recipient_bank ?? ''),
+      swift:
+        (recipient.swift as string | null | undefined) ??
+        (row.recipient_swift as string | null | undefined) ??
+        null,
+      iban:
+        (recipient.iban as string | null | undefined) ??
+        (row.recipient_iban as string | null | undefined) ??
+        null,
     },
     description: (row.description as string | null) ?? null,
     currentStage: Number(row.currentStage ?? row.current_stage ?? 0),
