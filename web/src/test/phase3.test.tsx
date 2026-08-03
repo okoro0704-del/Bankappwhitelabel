@@ -282,7 +282,7 @@ describe('admin phase 3 screens', () => {
       expect(api.adminCreateUser).toHaveBeenCalled();
     });
     expect(await screen.findByText(/account holder deliverables/i)).toBeInTheDocument();
-    expect(screen.getByText(/temporary password/i)).toBeInTheDocument();
+    expect(screen.getByText('Temporary password')).toBeInTheDocument();
     expect(api.adminCreateUser).toHaveBeenCalledWith(
       expect.objectContaining({
         username: 'newperson',
