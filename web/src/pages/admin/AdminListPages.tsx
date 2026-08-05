@@ -462,6 +462,8 @@ export function AdminTransfersPage() {
         transferId={selectedId}
         initial={selectedInitial}
         useAdminApi
+        allowEditTransferDate
+        onUpdated={() => void query.reload()}
         onClose={() => {
           setSelectedId(null);
           setSelectedInitial(null);

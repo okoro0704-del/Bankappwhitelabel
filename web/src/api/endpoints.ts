@@ -737,6 +737,31 @@ export const api = {
     }
   },
 
+  adminUpdateTransferCreatedAt: async (
+    transferId: string,
+    createdAt: string,
+  ): Promise<Transfer> => {
+    try {
+      const data = await rpcJson<Record<string, unknown>>('admin_update_transfer_created_at', {
+        p_transfer_id: transferId,
+        p_created_at: createdAt,
+      });
+      return mapTransfer(data);
+    } catch (error) {
+      const missingFn =
+        error instanceof ApiError &&
+        /could not find the function|does not exist|schema cache/i.test(error.message);
+      if (missingFn) {
+        throw new ApiError(
+          'VALIDATION_ERROR',
+          'Transfer-date RPC is missing. Run supabase/migrations/20260803300000_admin_update_transfer_created_at.sql in the Supabase SQL Editor.',
+          400,
+        );
+      }
+      throw error;
+    }
+  },
+
   adminUpdateStatus: async (profileId: string, status: 'active' | 'suspended'): Promise<Profile> => {
     try {
       const data = await rpcJson<Record<string, unknown>>('admin_set_profile_status', {
