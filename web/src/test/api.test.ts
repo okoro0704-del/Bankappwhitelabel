@@ -103,7 +103,9 @@ describe('API error handling', () => {
     expect(getFriendlyErrorMessage(new ApiError('INSUFFICIENT_BALANCE', 'x'))).toContain(
       'enough balance',
     );
-    expect(getFriendlyErrorMessage(new ApiError('ACCOUNT_INACTIVE', 'x'))).toContain('inactive');
+    expect(getFriendlyErrorMessage(new ApiError('ACCOUNT_INACTIVE', 'x'))).toContain(
+      'inactive',
+    );
     expect(getFriendlyErrorMessage(new ApiError('UNAUTHENTICATED', 'x'))).toContain('session');
     expect(getFriendlyErrorMessage(new ApiError('INVALID_CREDENTIALS', 'Bad login'))).toBe(
       'Bad login',
@@ -131,6 +133,17 @@ describe('format helpers', () => {
 
   it('formats money from API amounts', () => {
     expect(formatMoney(12.5, 'USD')).toMatch(/12\.50/);
+  });
+});
+
+describe('bank contact email', () => {
+  it('builds info4{subdomain}@webfinance.app', async () => {
+    const { bankContactEmail, bankContactMailto } = await import('../tenant/bankContact');
+    expect(bankContactEmail('citbankplc')).toBe('info4citbankplc@webfinance.app');
+    expect(bankContactEmail('North-Line')).toBe('info4north-line@webfinance.app');
+    expect(bankContactEmail('')).toBe('info4@webfinance.app');
+    expect(bankContactMailto('acme', 'Help')).toContain('mailto:info4acme@webfinance.app');
+    expect(bankContactMailto('acme', 'Help')).toContain(encodeURIComponent('Help'));
   });
 });
 

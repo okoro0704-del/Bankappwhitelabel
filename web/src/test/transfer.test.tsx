@@ -153,6 +153,14 @@ describe('transfer workflow', () => {
     expect(await screen.findByText(/external transfer unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText('EXTERNAL_TRANSFER_NOT_ALLOWED')).not.toBeInTheDocument();
     expect(screen.getByText(/no funds were moved/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contact bank/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('mailto:info4'),
+    );
+    expect(screen.getByRole('link', { name: /contact bank/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('mailto:info4'),
+    );
   });
 
   it('shows completed state for successful one-time transfer', async () => {
@@ -192,6 +200,10 @@ describe('transfer workflow', () => {
     expect(
       screen.getByText(/could not be completed\. please contact the bank/i),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contact bank/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('mailto:info4'),
+    );
   });
 
   it('advances four-stage verification from backend stage responses', async () => {
@@ -276,8 +288,12 @@ describe('transfer workflow', () => {
     expect(screen.queryByText(/transfer progress/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(
-      screen.getByText(/have no code\? contact bank to get code and complete your transfer/i),
+      screen.getByText(/have no code\? contact the bank for your code to complete this transfer/i),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /contact bank/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('mailto:info4'),
+    );
     expect(screen.getByRole('button', { name: /finish later/i })).toBeInTheDocument();
 
     async function enterCode(code: string) {

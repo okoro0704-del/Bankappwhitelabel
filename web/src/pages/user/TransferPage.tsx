@@ -26,6 +26,8 @@ import {
   stageFromStatus,
 } from '../../transfer/visualProgress';
 import { MOCK_BANKS } from '../../data/banks';
+import { bankContactEmail } from '../../tenant/bankContact';
+import { useOptionalTenant } from '../../tenant/TenantProvider';
 import { createIdempotencyKey, formatMoney } from '../../utils/format';
 import type {
   Account,
@@ -65,6 +67,8 @@ function limitReachedMessage(code?: string | null, fallback?: string | null): st
 export function TransferPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { pushToast } = useToast();
+  const tenant = useOptionalTenant();
+  const supportEmail = bankContactEmail(tenant?.config?.subdomain);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -609,14 +613,13 @@ export function TransferPage() {
       let message = getFriendlyErrorMessage(err);
       if (err instanceof ApiError) {
         if (err.code === 'INVALID_VERIFICATION_CODE') {
-          message = 'Incorrect verification code';
+          message = `Incorrect verification code. Contact the bank at ${supportEmail} if you need a code.`;
         } else if (err.code === 'VERIFICATION_EXPIRED') {
-          message = 'Verification code expired';
+          message = `Verification code expired. Contact the bank at ${supportEmail} for a new code.`;
         } else if (err.code === 'TOO_MANY_VERIFICATION_ATTEMPTS') {
-          message = getFriendlyErrorMessage(err);
+          message = `${getFriendlyErrorMessage(err)} Contact the bank at ${supportEmail}.`;
         } else if (err.code === 'INVALID_TRANSFER' || err.code === 'NOT_FOUND') {
-          message =
-            'This transfer is not ready for that code. Contact the bank if this keeps happening.';
+          message = `This transfer is not ready for that code. Contact the bank at ${supportEmail}.`;
         }
       }
       setCodeError(message);

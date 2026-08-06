@@ -15,6 +15,7 @@ const FRIENDLY: Record<string, string> = {
   INVALID_CREDENTIALS: 'Invalid username or password.',
   FORBIDDEN: 'You do not have permission to perform this action.',
   ACCOUNT_NOT_FOUND: 'Account could not be found.',
+  ACCOUNT_INACTIVE: 'This account is inactive. Contact the bank for assistance.',
   ADMIN_LOGIN_DISABLED:
     'Admin login is disabled for this bank. Ask Web Finance to Enable admin login again.',
   INSUFFICIENT_BALANCE: 'There is not enough balance for this request.',

@@ -8,9 +8,51 @@ import {
   verificationCodeSubtitle,
   verificationCodeTitle,
 } from '../../transfer/visualProgress';
+import { bankContactEmail, bankContactMailto } from '../../tenant/bankContact';
+import { useOptionalTenant } from '../../tenant/TenantProvider';
 import { VerificationCodeInput } from './VerificationCodeInput';
 
 const IS_TEST = import.meta.env.MODE === 'test';
+
+function useBankSubdomain(): string | null | undefined {
+  return useOptionalTenant()?.config?.subdomain;
+}
+
+export function ContactBankNotice({
+  context = 'transfer',
+}: {
+  context?: 'verification' | 'transfer' | 'restricted';
+}) {
+  const subdomain = useBankSubdomain();
+  const email = bankContactEmail(subdomain);
+  const subject =
+    context === 'verification'
+      ? 'Need transfer verification code'
+      : context === 'restricted'
+        ? 'External transfer unavailable'
+        : 'Transfer assistance';
+  const href = bankContactMailto(subdomain, subject);
+  const lead =
+    context === 'verification'
+      ? 'Have no code? Contact the bank for your code to complete this transfer.'
+      : context === 'restricted'
+        ? 'Contact the bank if you need help with this account.'
+        : 'Your transfer could not continue. Contact the bank for assistance.';
+
+  return (
+    <div className="stack-sm" style={{ marginTop: '0.25rem' }}>
+      <p className="field-hint" style={{ margin: 0 }}>
+        {lead}{' '}
+        <a href={href} className="mono-break">
+          {email}
+        </a>
+      </p>
+      <a className="btn btn-primary" href={href}>
+        Contact bank
+      </a>
+    </div>
+  );
+}
 
 export interface TransferDraft {
   recipientName: string;
@@ -208,9 +250,7 @@ export function VerificationPanel({
         hint="Enter the 6-digit code provided by your bank"
       />
 
-      <p className="field-hint" style={{ marginTop: '-0.25rem' }}>
-        Have no code? Contact bank to get code and complete your transfer
-      </p>
+      <ContactBankNotice context="verification" />
 
       <div className="row" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
         <Button type="button" disabled={submitting || code.length !== 6} onClick={onSubmit}>
@@ -356,6 +396,7 @@ export function FailedPanel({
           <dd>{statusLabel(transfer?.status ?? 'failed')}</dd>
         </div>
       </dl>
+      <ContactBankNotice context="transfer" />
       <OutcomeActions showTryAgain onMakeAnother={onMakeAnother} />
     </div>
   );
@@ -391,6 +432,7 @@ export function RestrictedPanel({
           <dd>Restricted</dd>
         </div>
       </dl>
+      <ContactBankNotice context="restricted" />
       <div className="row">
         <Link className="btn btn-primary" to="/app">
           Back to dashboard
