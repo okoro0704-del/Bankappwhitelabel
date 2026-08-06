@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
+import { bankContactEmail, bankContactMailto } from '../../tenant/bankContact';
 import { BrandMark } from '../../tenant/BrandMark';
 import { sanitizePublicUrl } from '../../tenant/branding';
 import { defaultHomeContent, sanitizeHomeContent } from '../../tenant/homeContent';
@@ -9,7 +10,10 @@ export function LandingPage() {
   const { appUser } = useAuth();
   const { branding, config } = useTenant();
   const applicationName = branding?.applicationName ?? config?.name ?? 'Application';
-  const supportEmail = branding?.supportEmail;
+  const bankEmail = bankContactEmail(config?.subdomain);
+  const bankMailto = bankContactMailto(config?.subdomain);
+  const supportEmail = branding?.supportEmail?.trim() || null;
+  const showSupportEmail = Boolean(supportEmail && supportEmail.toLowerCase() !== bankEmail.toLowerCase());
   const supportPhone = branding?.supportPhone;
   const hasLogo = Boolean(sanitizePublicUrl(branding?.logoUrl ?? null));
   const home = sanitizeHomeContent(
@@ -37,11 +41,7 @@ export function LandingPage() {
     <div className="landing landing--rich">
       <div className="landing-topbar">
         <div className="landing-topbar-inner">
-          {supportEmail ? (
-            <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
-          ) : (
-            <span>{applicationName}</span>
-          )}
+          <a href={bankMailto}>{bankEmail}</a>
           <span className="landing-topbar-hours">{home.topBarHours}</span>
           {supportPhone ? <a href={`tel:${supportPhone.replace(/\s+/g, '')}`}>{supportPhone}</a> : null}
         </div>
@@ -211,9 +211,13 @@ export function LandingPage() {
               Need help before you sign in? Reach {applicationName} using the details below.
             </p>
             <ul className="landing-contact-list">
-              {supportEmail ? (
+              <li>
+                <strong>Email</strong>
+                <a href={bankMailto}>{bankEmail}</a>
+              </li>
+              {showSupportEmail ? (
                 <li>
-                  <strong>Email</strong>
+                  <strong>Support</strong>
                   <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
                 </li>
               ) : null}
@@ -262,7 +266,8 @@ export function LandingPage() {
           <div>
             <h3>{home.headOfficeTitle}</h3>
             <p>{home.headOfficeAddress}</p>
-            {supportEmail ? <a href={`mailto:${supportEmail}`}>{supportEmail}</a> : null}
+            <a href={bankMailto}>{bankEmail}</a>
+            {showSupportEmail ? <a href={`mailto:${supportEmail}`}>{supportEmail}</a> : null}
             {supportPhone ? (
               <a href={`tel:${supportPhone.replace(/\s+/g, '')}`}>{supportPhone}</a>
             ) : null}
